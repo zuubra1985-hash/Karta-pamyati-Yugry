@@ -25,7 +25,7 @@ const png = {
   data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jGuUAAAAASUVORK5CYII=",
 };
 before(async () => {
-  store = new Store(":memory:");
+  store = new Store(":memory:", { catalogue: false });
   store.createAdmin("editor@example.invalid", "test-only-long-password-123");
   server = createApp(store).listen(0, "127.0.0.1");
   await new Promise((resolve) => server.once("listening", resolve));
@@ -65,8 +65,12 @@ test("submission remains private until authenticated moderation; approved contac
   assert.equal((await request(`/api/media/${submission.mediaId}`)).status, 404);
   assert.equal((await request("/api/admin/submissions")).status, 401);
   assert.equal(
-    (await request(`/api/admin/submissions/${id}`, { action: "approve" }))
-      .status,
+    (
+      await request(`/api/admin/submissions/${id}`, {
+        action: "approve",
+        revision: 0,
+      })
+    ).status,
     401,
   );
   const cookie = editorCookie();
@@ -79,7 +83,7 @@ test("submission remains private until authenticated moderation; approved contac
     (
       await request(
         `/api/admin/submissions/${id}`,
-        { action: "approve" },
+        { action: "approve", revision: 0 },
         cookie,
       )
     ).status,
@@ -97,7 +101,7 @@ test("submission remains private until authenticated moderation; approved contac
     (
       await request(
         `/api/admin/submissions/${id}`,
-        { action: "approve" },
+        { action: "approve", revision: 0 },
         cookie,
       )
     ).status,
@@ -113,7 +117,7 @@ test("rejected material and image never appear in public archive", async () => {
     (
       await request(
         `/api/admin/submissions/${id}`,
-        { action: "reject", reason: "Нужен источник" },
+        { action: "reject", reason: "Нужен источник", revision: 0 },
         editorCookie(),
       )
     ).status,
@@ -194,10 +198,10 @@ test("database survives restart; setup does not duplicate demo content", () => {
   const directory = mkdtempSync(join(tmpdir(), "yugra-memory-"));
   try {
     const path = join(directory, "db.sqlite");
-    const original = new Store(path);
+    const original = new Store(path, { catalogue: false });
     const id = original.submit(input);
     original.close();
-    const restored = new Store(path);
+    const restored = new Store(path, { catalogue: false });
     assert.equal(restored.places().length, 8);
     assert.equal(restored.submissions()[0].id, id);
     restored.close();

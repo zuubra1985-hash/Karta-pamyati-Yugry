@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { Layers, LocateFixed, Minus, Plus } from "lucide-react";
@@ -19,6 +19,17 @@ export default function MemoryMap({
   const onSelectRef = useRef(onSelect);
   const [osm, setOsm] = useState(false);
   const [tileError, setTileError] = useState(false);
+  const [showHypotheses, setShowHypotheses] = useState(false);
+  const mapped = useMemo(
+    () =>
+      places.filter(
+        (p): p is Place & { latitude: number; longitude: number } =>
+          p.latitude !== null &&
+          p.longitude !== null &&
+          (p.coordinateStatus !== "hypothesis" || showHypotheses),
+      ),
+    [places, showHypotheses],
+  );
   onSelectRef.current = onSelect;
   useEffect(() => {
     const instance = L.map(container.current!, {
@@ -74,11 +85,11 @@ export default function MemoryMap({
     const group = markers.current;
     if (!group) return;
     group.clearLayers();
-    places.forEach((p) => {
+    mapped.forEach((p) => {
       // Marker markup contains only constant icons. User strings are text nodes.
       const icon = L.divIcon({
         className: "memory-pin-container",
-        html: `<span class="memory-pin ${p.id === selected ? "active" : ""}"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 20V9l8-5 8 5v11M8 20v-7h8v7M2 20h20M9 8h6"/></svg></span>`,
+        html: `<span class="memory-pin ${p.coordinateStatus === "hypothesis" ? "hypothesis" : ""} ${p.id === selected ? "active" : ""}"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 20V9l8-5 8 5v11M8 20v-7h8v7M2 20h20M9 8h6"/></svg></span>`,
         iconSize: [36, 44],
         iconAnchor: [18, 40],
       });
@@ -90,24 +101,31 @@ export default function MemoryMap({
       }).addTo(group);
       marker.on("click", () => onSelectRef.current(p));
       const label = document.createElement("span");
-      label.textContent = p.location;
+      label.textContent = p.catalogue ? p.title : p.location;
       marker.bindTooltip(label, {
-        permanent: true,
+        permanent: p.coordinateStatus !== "hypothesis",
         direction: p.id === "megion" ? "top" : "bottom",
         offset: p.id === "megion" ? [0, -35] : [0, 5],
         className: "place-map-label",
       });
     });
-  }, [places, selected]);
+  }, [mapped, selected]);
   useEffect(() => {
-    const p = places.find((p) => p.id === selected);
+    if (showHypotheses && mapped.length)
+      map.current?.fitBounds(
+        L.latLngBounds(mapped.map((p) => [p.latitude, p.longitude])),
+        { padding: [45, 45], maxZoom: 9 },
+      );
+  }, [showHypotheses, mapped]);
+  useEffect(() => {
+    const p = mapped.find((p) => p.id === selected);
     if (
       p &&
       map.current &&
       !map.current.getBounds().contains([p.latitude, p.longitude])
     )
       map.current.panTo([p.latitude, p.longitude]);
-  }, [selected, places]);
+  }, [selected, mapped]);
   useEffect(() => {
     if (!map.current) return;
     if (osm) {
@@ -142,6 +160,22 @@ export default function MemoryMap({
         <span className="live-dot" />{" "}
         {osm ? "OpenStreetMap" : "Югра · карта воспоминаний"}
       </div>
+      {places.some((p) => p.coordinateStatus === "hypothesis") && (
+        <div className="hypothesis-controls">
+          <button
+            aria-pressed={showHypotheses}
+            onClick={() => setShowHypotheses((v) => !v)}
+          >
+            {showHypotheses ? "Скрыть гипотезы" : "Показать гипотезы"} ·{" "}
+            {places.filter((p) => p.coordinateStatus === "hypothesis").length}
+          </button>
+          <span>
+            {showHypotheses
+              ? "G1 / P0 · не для навигации"
+              : "Точки не подтверждены. Карточки доступны в списке."}
+          </span>
+        </div>
+      )}
       <div className="map-controls">
         <button
           aria-label="Приблизить карту"
@@ -159,9 +193,9 @@ export default function MemoryMap({
         <button
           aria-label="Показать все места"
           onClick={() => {
-            if (places.length)
+            if (mapped.length)
               map.current?.fitBounds(
-                L.latLngBounds(places.map((p) => [p.latitude, p.longitude])),
+                L.latLngBounds(mapped.map((p) => [p.latitude, p.longitude])),
                 { padding: [45, 45], maxZoom: 9 },
               );
           }}

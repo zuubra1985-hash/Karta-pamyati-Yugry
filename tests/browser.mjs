@@ -6,7 +6,7 @@ import { Store } from "../server/store.mjs";
 import { createApp } from "../server/app.mjs";
 
 // Isolated data: browser tests never add test people/stories to the working archive.
-const store = new Store(":memory:");
+const store = new Store(":memory:", { catalogue: false });
 store.createAdmin("browser@example.invalid", "browser-test-password-only");
 const app = createApp(store);
 app.use(express.static(resolve("dist")));
@@ -42,12 +42,62 @@ try {
   await page.getByLabel("Десятилетие").selectOption("1950");
   assert.equal(await page.locator(".mini-card").count(), 1);
   await page.getByLabel("Десятилетие").selectOption("all");
+  await page
+    .getByRole("slider", { name: "Начальный год", exact: true })
+    .fill("1970");
+  await page
+    .getByRole("slider", { name: "Конечный год", exact: true })
+    .fill("1980");
+  assert.equal(await page.locator(".mini-card").count(), 4);
+  assert.equal(await page.locator(".leaflet-marker-icon").count(), 4);
+  await page
+    .getByRole("slider", { name: "Начальный год", exact: true })
+    .fill("1990");
+  assert.equal(await page.locator(".mini-card").count(), 1);
+  await page
+    .getByRole("slider", { name: "Конечный год", exact: true })
+    .fill("1970");
+  assert.equal(await page.locator(".mini-card").count(), 2);
+  await page.getByRole("button", { name: "Все годы", exact: true }).click();
+  assert.equal(await page.locator(".mini-card").count(), 8);
+  passed.push(
+    "Timeline: date range, synchronized markers, crossed handles and reset",
+  );
   await page.getByRole("button", { name: "Без примеров", exact: true }).click();
   await page.locator(".place-scroll .empty").waitFor();
   await page.getByRole("button", { name: "Без примеров", exact: true }).click();
   passed.push("Search, category, decade and demonstration filters");
   await page.locator(".mini-card-main").first().click();
   await page.getByRole("dialog").waitFor();
+  await page.locator(".comparison").waitFor();
+  await page
+    .getByRole("slider", { name: "Положение разделителя", exact: true })
+    .fill("25");
+  assert.ok(
+    (await page.locator(".comparison-before").getAttribute("style")).includes(
+      "75%",
+    ),
+  );
+  await page
+    .getByRole("button", { name: "Показать рядом", exact: true })
+    .click();
+  assert.equal(await page.locator(".comparison-pair figure").count(), 2);
+  await page
+    .getByRole("button", { name: "С разделителем", exact: true })
+    .click();
+  await page
+    .getByRole("slider", { name: "Положение разделителя", exact: true })
+    .focus();
+  await page.keyboard.press("End");
+  assert.equal(
+    await page
+      .getByRole("slider", { name: "Положение разделителя", exact: true })
+      .inputValue(),
+    "100",
+  );
+  passed.push(
+    "Before/after comparison: separator, keyboard and side-by-side mode",
+  );
   await page
     .getByRole("button", { name: "Сохранить место", exact: true })
     .click();
@@ -76,16 +126,28 @@ try {
         3,
       ),
     );
+  await dialog.getByLabel("Первый снимок", { exact: true }).setInputFiles({
+    name: "test.png",
+    mimeType: "image/png",
+    buffer: Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jGuUAAAAASUVORK5CYII=",
+      "base64",
+    ),
+  });
   await dialog
-    .locator("input[type=file]")
+    .getByLabel("Второй снимок для сравнения", { exact: true })
     .setInputFiles({
-      name: "test.png",
+      name: "now.png",
       mimeType: "image/png",
       buffer: Buffer.from(
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jGuUAAAAASUVORK5CYII=",
         "base64",
       ),
     });
+  await dialog.getByLabel("Год второго снимка", { exact: true }).fill("2020");
+  await dialog
+    .getByLabel("Источник второго снимка", { exact: true })
+    .fill("Второй снимок — изолированный тест");
   await dialog
     .getByLabel("Источник и автор фотографии")
     .fill("Изолированный тест, автор — автоматическая проверка");
@@ -93,7 +155,25 @@ try {
   await dialog
     .getByLabel("Email для редактора")
     .fill("private-browser@example.invalid");
-  await dialog.getByRole("checkbox").check();
+  await dialog
+    .getByRole("checkbox", { name: /Есть документ-источник/ })
+    .check();
+  await dialog
+    .getByLabel("Официальное название объекта", { exact: true })
+    .fill("Объект из изолированного тестового паспорта");
+  await dialog
+    .getByLabel("Вид объекта", { exact: true })
+    .fill("Тестовый объект");
+  await dialog
+    .getByLabel("Датировка по паспорту", { exact: true })
+    .fill("1975–1976");
+  await dialog
+    .getByLabel("Название документа-источника", { exact: true })
+    .fill("Тестовый паспорт, не реальный документ");
+  await dialog
+    .getByLabel("Архивный шифр или страница", { exact: true })
+    .fill("Тест / страница 2");
+  await dialog.getByRole("checkbox", { name: /Я имею право/ }).check();
   await dialog
     .getByRole("button", { name: "Отправить историю", exact: true })
     .click();
@@ -113,6 +193,32 @@ try {
     .fill("browser-test-password-only");
   await page.getByRole("button", { name: "Войти в редакцию" }).click();
   await page.locator(".review-card").waitFor();
+  await page
+    .getByRole("button", { name: "Уточнить материал", exact: true })
+    .click();
+  await page
+    .getByLabel("Заголовок материала", { exact: true })
+    .fill("Уточнённая история из браузерной проверки");
+  await page
+    .getByLabel("Источник материала", { exact: true })
+    .fill("Источник уточнён редактором в изолированном тесте");
+  await page
+    .getByRole("button", { name: "Сохранить уточнения", exact: true })
+    .click();
+  await page.locator(".editor-notice").waitFor();
+  assert.equal(store.submissions()[0].revision, 1);
+  await page
+    .getByRole("button", { name: "История правок", exact: true })
+    .click();
+  await page.locator(".edit-history summary").click();
+  assert.ok(
+    (await page.locator(".edit-history").textContent()).includes(
+      "Воспоминание из браузерной проверки",
+    ),
+  );
+  passed.push(
+    "Editorial correction: saved revision, original preserved, history visible",
+  );
   await page.getByRole("button", { name: "Опубликовать", exact: true }).click();
   await page.locator(".editor .empty").waitFor();
   await page.getByRole("button", { name: "Выйти", exact: true }).click();
@@ -124,6 +230,35 @@ try {
     !(await published.text()).includes("private-browser@example.invalid"),
   );
   passed.push("Editor login, publication, logout, private email excluded");
+  const approved = store
+    .places()
+    .find((p) => p.title === "Уточнённая история из браузерной проверки");
+  assert.equal(approved.afterYear, 2020);
+  assert.equal(
+    approved.passport.documentTitle,
+    "Тестовый паспорт, не реальный документ",
+  );
+  await page.goto(`${origin}/#place/${approved.id}`, {
+    waitUntil: "networkidle",
+  });
+  await page.locator(".place-detail .comparison").waitFor();
+  await page
+    .getByRole("region", { name: "Паспорт объекта", exact: true })
+    .waitFor();
+  assert.ok(
+    (await page.locator(".passport-card").textContent()).includes(
+      "Тест / страница 2",
+    ),
+  );
+  assert.ok(
+    (await page.locator(".comparison-source").textContent()).includes(
+      "Второй снимок",
+    ),
+  );
+  await page.keyboard.press("Escape");
+  passed.push(
+    "Published contributor pair, passport fields and sources are visible in the public story",
+  );
   await page
     .locator(".main-nav")
     .getByRole("link", { name: "Маршруты памяти" })
@@ -168,6 +303,18 @@ try {
     ),
     false,
   );
+  await page.locator(".mini-card-main").first().click();
+  await page
+    .getByRole("button", { name: "Показать рядом", exact: true })
+    .click();
+  assert.equal(await page.locator(".comparison-pair figure").count(), 2);
+  assert.equal(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth > innerWidth,
+    ),
+    false,
+  );
+  await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Открыть меню", exact: true }).click();
   await page
     .locator(".main-nav")
@@ -176,6 +323,55 @@ try {
   await page.locator(".story-card").first().waitFor();
   assert.equal(await page.locator(".main-nav").isVisible(), false);
   passed.push("Mobile layout and menu");
+  store.importCatalogue();
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto(origin + "/#map", { waitUntil: "networkidle" });
+  await page.reload({ waitUntil: "networkidle" });
+  assert.equal(await page.locator(".mini-card").count(), 38);
+  assert.equal(await page.locator(".memory-pin.hypothesis").count(), 0);
+  await page.getByRole("button", { name: /^Показать гипотезы/ }).click();
+  assert.equal(await page.locator(".memory-pin.hypothesis").count(), 35);
+  await page.getByRole("textbox", { name: "Поиск по архиву" }).fill("Кедровый");
+  assert.equal(await page.locator(".mini-card").count(), 1);
+  assert.equal(await page.locator(".leaflet-marker-icon").count(), 0);
+  await page.locator(".mini-card-main").click();
+  await page.locator(".passport-card").waitFor();
+  assert.ok(
+    (await page.locator(".passport-card").textContent()).includes(
+      "Не локализован",
+    ),
+  );
+  assert.ok(
+    (await page.locator(".source-box").textContent()).includes(
+      "Местоположение не установлено",
+    ),
+  );
+  assert.ok(
+    (await page.locator(".source-warning").textContent()).includes("PAS-029"),
+  );
+  await page
+    .getByRole("link", { name: "Открыть папку источника", exact: true })
+    .getAttribute("href")
+    .then((href) => assert.ok(href.includes("drive.google.com")));
+  await page.keyboard.press("Escape");
+  await page
+    .locator(".main-nav")
+    .getByRole("link", { name: "Маршруты памяти" })
+    .click();
+  await page.locator(".route-card").first().click();
+  assert.equal(await page.locator(".route-detail li").count(), 4);
+  await page.keyboard.press("Escape");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(origin + "/#map", { waitUntil: "networkidle" });
+  assert.equal(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth > innerWidth,
+    ),
+    false,
+  );
+  passed.push(
+    "36 source passports: hidden hypotheses, no invented coordinates for PAS-029, traceable sources and thematic collections",
+  );
   assert.deepEqual(errors, []);
   console.log(passed.map((p) => `PASS ${p}`).join("\n"));
   console.log(

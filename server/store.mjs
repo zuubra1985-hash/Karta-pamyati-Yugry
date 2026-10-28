@@ -9,6 +9,7 @@ import {
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { seedPlaces } from "./seed.mjs";
+import passportPlaces from "./data/passports.json" with { type: "json" };
 
 export const hashToken = (value) =>
   createHash("sha256").update(value).digest("hex");
@@ -24,7 +25,7 @@ export function checkPassword(password, stored) {
 }
 
 export class Store {
-  constructor(filename, { seed = true } = {}) {
+  constructor(filename, { seed = true, catalogue = seed } = {}) {
     if (filename !== ":memory:")
       mkdirSync(dirname(filename), { recursive: true });
     this.db = new DatabaseSync(filename);
@@ -36,6 +37,21 @@ export class Store {
       CREATE TABLE IF NOT EXISTS admins (email TEXT PRIMARY KEY, password TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, email TEXT NOT NULL REFERENCES admins(email), expires INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);`);
+    // Additive migration: existing submissions and their original content are retained.
+    if (
+      !this.db
+        .prepare("PRAGMA table_info(submissions)")
+        .all()
+        .some((c) => c.name === "revision")
+    )
+      this.db.exec(
+        "ALTER TABLE submissions ADD COLUMN revision INTEGER NOT NULL DEFAULT 0",
+      );
+    this.db.exec(`CREATE TABLE IF NOT EXISTS submission_edits (
+      id TEXT PRIMARY KEY, submission_id TEXT NOT NULL REFERENCES submissions(id),
+      revision INTEGER NOT NULL, editor TEXT NOT NULL, created_at TEXT NOT NULL,
+      before_data TEXT NOT NULL, after_data TEXT NOT NULL
+    ); CREATE INDEX IF NOT EXISTS submission_edits_by_submission ON submission_edits(submission_id, revision);`);
     if (
       seed &&
       !this.db.prepare("SELECT 1 FROM metadata WHERE key='seed_v1'").get()
@@ -50,6 +66,55 @@ export class Store {
           .run();
       });
     }
+    if (
+      seed &&
+      !this.db
+        .prepare("SELECT 1 FROM metadata WHERE key='comparison_demo_v2'")
+        .get()
+    ) {
+      this.transaction(() => {
+        const current = this.place("old-surgut");
+        if (
+          current?.demo === true &&
+          !current.afterMediaId &&
+          !current.afterImage
+        ) {
+          this.db.prepare("UPDATE places SET data=? WHERE id=?").run(
+            JSON.stringify({
+              ...current,
+              afterImage: "village-now",
+              afterYear: 2020,
+              afterSource:
+                "Авторская иллюстрация для демонстрации сравнения. Не исторический снимок.",
+            }),
+            current.id,
+          );
+        }
+        this.db
+          .prepare("INSERT INTO metadata VALUES ('comparison_demo_v2', 'done')")
+          .run();
+      });
+    }
+    if (catalogue) this.importCatalogue();
+  }
+  importCatalogue() {
+    if (
+      this.db
+        .prepare("SELECT 1 FROM metadata WHERE key='surgut_passports_2026_v1'")
+        .get()
+    )
+      return;
+    this.transaction(() => {
+      for (const place of passportPlaces)
+        this.db
+          .prepare("INSERT OR IGNORE INTO places VALUES (?, ?)")
+          .run(place.id, JSON.stringify(place));
+      this.db
+        .prepare(
+          "INSERT INTO metadata VALUES ('surgut_passports_2026_v1', 'done')",
+        )
+        .run();
+    });
   }
   transaction(fn) {
     this.db.exec("BEGIN IMMEDIATE");
@@ -63,16 +128,19 @@ export class Store {
     }
   }
   places() {
-    return this.db
+    const places = this.db
       .prepare("SELECT data FROM places")
       .all()
       .map((r) => JSON.parse(r.data));
+    return places.some((p) => p.catalogue)
+      ? places.filter((p) => !p.demo)
+      : places;
   }
   place(id) {
     const row = this.db.prepare("SELECT data FROM places WHERE id=?").get(id);
     return row ? JSON.parse(row.data) : null;
   }
-  submit(input, photo) {
+  submit(input, photo, afterPhoto) {
     return this.transaction(() => {
       const id = randomUUID();
       const data = { ...input };
@@ -81,6 +149,12 @@ export class Store {
         this.db
           .prepare("INSERT INTO media VALUES (?, ?, ?)")
           .run(data.mediaId, photo.type, photo.bytes);
+      }
+      if (afterPhoto) {
+        data.afterMediaId = randomUUID();
+        this.db
+          .prepare("INSERT INTO media VALUES (?, ?, ?)")
+          .run(data.afterMediaId, afterPhoto.type, afterPhoto.bytes);
       }
       this.db
         .prepare(
@@ -99,15 +173,75 @@ export class Store {
         status: r.status,
         createdAt: r.created_at,
         reason: r.reason,
+        revision: r.revision,
         ...JSON.parse(r.data),
       }));
   }
-  moderate(id, action, reason = "") {
+  submission(id) {
+    const row = this.db.prepare("SELECT * FROM submissions WHERE id=?").get(id);
+    return row
+      ? {
+          ...JSON.parse(row.data),
+          id: row.id,
+          status: row.status,
+          revision: row.revision,
+          reason: row.reason,
+          createdAt: row.created_at,
+        }
+      : null;
+  }
+  revise(id, updates, revision, editor) {
     return this.transaction(() => {
       const row = this.db
         .prepare("SELECT * FROM submissions WHERE id=?")
         .get(id);
-      if (!row || row.status !== "pending") return false;
+      if (!row || row.status !== "pending" || row.revision !== revision)
+        return null;
+      const after = { ...JSON.parse(row.data), ...updates };
+      this.db
+        .prepare("INSERT INTO submission_edits VALUES (?, ?, ?, ?, ?, ?, ?)")
+        .run(
+          randomUUID(),
+          id,
+          revision + 1,
+          editor,
+          new Date().toISOString(),
+          row.data,
+          JSON.stringify(after),
+        );
+      this.db
+        .prepare(
+          "UPDATE submissions SET data=?, revision=revision+1 WHERE id=?",
+        )
+        .run(JSON.stringify(after), id);
+      return this.submission(id);
+    });
+  }
+  editHistory(id) {
+    return this.db
+      .prepare(
+        "SELECT revision, editor, created_at, before_data, after_data FROM submission_edits WHERE submission_id=? ORDER BY revision DESC",
+      )
+      .all(id)
+      .map((row) => ({
+        revision: row.revision,
+        editor: row.editor,
+        createdAt: row.created_at,
+        before: JSON.parse(row.before_data),
+        after: JSON.parse(row.after_data),
+      }));
+  }
+  moderate(id, action, reason = "", revision) {
+    return this.transaction(() => {
+      const row = this.db
+        .prepare("SELECT * FROM submissions WHERE id=?")
+        .get(id);
+      if (
+        !row ||
+        row.status !== "pending" ||
+        (revision !== undefined && row.revision !== revision)
+      )
+        return false;
       if (action === "approve") {
         const { contact, consent, ...data } = JSON.parse(row.data);
         const place = {
@@ -123,7 +257,9 @@ export class Store {
           .run(id, JSON.stringify(place));
       }
       this.db
-        .prepare("UPDATE submissions SET status=?, reason=? WHERE id=?")
+        .prepare(
+          "UPDATE submissions SET status=?, reason=?, revision=revision+1 WHERE id=?",
+        )
         .run(action === "approve" ? "approved" : "rejected", reason, id);
       return true;
     });
@@ -132,8 +268,10 @@ export class Store {
     if (
       !admin &&
       !this.db
-        .prepare("SELECT 1 FROM places WHERE json_extract(data, '$.mediaId')=?")
-        .get(id)
+        .prepare(
+          "SELECT 1 FROM places WHERE json_extract(data, '$.mediaId')=? OR json_extract(data, '$.afterMediaId')=?",
+        )
+        .get(id, id)
     )
       return null;
     return (

@@ -2,32 +2,8 @@ import express from "express";
 import helmet from "helmet";
 import { rateLimit } from "express-rate-limit";
 import { z } from "zod";
+import { submissionSchema, editorialSchema } from "./schemas.mjs";
 
-const submissionSchema = z.object({
-  title: z.string().trim().min(5).max(150),
-  location: z.string().trim().min(2).max(100),
-  category: z.enum([
-    "architecture",
-    "settlements",
-    "people",
-    "culture",
-    "nature",
-  ]),
-  year: z.number().int().min(1500).max(new Date().getFullYear()),
-  latitude: z.number().min(58).max(67),
-  longitude: z.number().min(58).max(86),
-  story: z.string().trim().min(80).max(15000),
-  author: z.string().trim().min(2).max(100),
-  contact: z.string().email().max(254),
-  source: z.string().trim().min(3).max(1000),
-  consent: z.literal(true),
-  photo: z
-    .object({
-      data: z.string().max(2800000),
-      type: z.enum(["image/jpeg", "image/png", "image/webp"]),
-    })
-    .optional(),
-});
 function decodePhoto(photo) {
   if (!photo) return null;
   const bytes = Buffer.from(photo.data, "base64");
@@ -78,7 +54,7 @@ export function createApp(store, { production = false, origin } = {}) {
       strictTransportSecurity: production ? undefined : false,
     }),
   );
-  app.use(express.json({ limit: "3mb" }));
+  app.use(express.json({ limit: "6mb" }));
   app.use("/api", (req, res, next) => {
     res.setHeader("Cache-Control", "no-store");
     if (!["GET", "HEAD", "OPTIONS"].includes(req.method)) {
@@ -128,21 +104,21 @@ export function createApp(store, { production = false, origin } = {}) {
   app.post("/api/submissions", limiter(10), (req, res) => {
     const parsed = submissionSchema.safeParse(req.body);
     if (!parsed.success)
-      return res
-        .status(400)
-        .json({
-          error:
-            "Проверьте поля: рассказ от 80 символов, год от 1500 до текущего, координаты в пределах Югры и согласие на публикацию.",
-          fields: parsed.error.issues.map((i) => i.path.join(".")),
-        });
-    const { photo, ...data } = parsed.data;
-    let image;
+      return res.status(400).json({
+        error:
+          parsed.error.issues.find((i) => i.code === "custom")?.message ||
+          "Проверьте поля: рассказ от 80 символов, год от 1500 до текущего, координаты в пределах Югры и согласие на публикацию.",
+        fields: parsed.error.issues.map((i) => i.path.join(".")),
+      });
+    const { photo, afterPhoto, ...data } = parsed.data;
+    let image, afterImage;
     try {
       image = decodePhoto(photo);
+      afterImage = decodePhoto(afterPhoto);
     } catch (e) {
       return res.status(400).json({ error: e.message });
     }
-    const id = store.submit(data, image);
+    const id = store.submit(data, image, afterImage);
     res.status(201).json({ id, status: "pending" });
   });
   app.get("/api/media/:id", (req, res) => {
@@ -192,19 +168,72 @@ export function createApp(store, { production = false, origin } = {}) {
   app.get("/api/admin/submissions", requireAdmin, (_, res) =>
     res.json(store.submissions()),
   );
+  app.get("/api/admin/submissions/:id/history", requireAdmin, (req, res) =>
+    res.json(store.editHistory(req.params.id)),
+  );
+  app.patch("/api/admin/submissions/:id", requireAdmin, (req, res) => {
+    const parsed = editorialSchema.safeParse(req.body);
+    if (!parsed.success)
+      return res.status(400).json({
+        error:
+          "Проверьте заголовок, текст, источники, год и координаты. Системные поля менять нельзя.",
+      });
+    const { revision, ...updates } = parsed.data;
+    const current = store.submission(req.params.id);
+    if (
+      !current ||
+      current.status !== "pending" ||
+      current.revision !== revision
+    )
+      return res.status(409).json({
+        error:
+          "Материал изменён другим редактором или уже рассмотрен. Обновите список перед продолжением.",
+      });
+    if (
+      current.afterMediaId
+        ? !updates.afterSource ||
+          updates.afterYear === undefined ||
+          updates.afterYear < updates.year
+        : updates.afterYear !== undefined || updates.afterSource !== undefined
+    )
+      return res.status(400).json({
+        error:
+          "Для пары снимков укажите источник и год второго снимка не раньше первого. Без пары эти поля не используются.",
+      });
+    const updated = store.revise(
+      req.params.id,
+      updates,
+      revision,
+      req.admin.email,
+    );
+    if (!updated)
+      return res
+        .status(409)
+        .json({ error: "Материал изменился. Обновите список." });
+    res.json(updated);
+  });
   app.post("/api/admin/submissions/:id", requireAdmin, (req, res) => {
     const parsed = z
       .object({
         action: z.enum(["approve", "reject"]),
         reason: z.string().trim().max(1000).default(""),
+        revision: z.number().int().min(0),
       })
       .safeParse(req.body);
     if (!parsed.success)
       return res.status(400).json({ error: "Некорректное решение." });
-    if (!store.moderate(req.params.id, parsed.data.action, parsed.data.reason))
-      return res
-        .status(409)
-        .json({ error: "Материал уже рассмотрен или не найден." });
+    if (
+      !store.moderate(
+        req.params.id,
+        parsed.data.action,
+        parsed.data.reason,
+        parsed.data.revision,
+      )
+    )
+      return res.status(409).json({
+        error:
+          "Материал уже рассмотрен, изменён другим редактором или не найден. Обновите список.",
+      });
     res.json({ ok: true });
   });
   app.use("/api", (_, res) =>
@@ -213,9 +242,10 @@ export function createApp(store, { production = false, origin } = {}) {
   app.use((error, req, res, next) => {
     if (res.headersSent) return next(error);
     if (error.type === "entity.too.large")
-      return res
-        .status(413)
-        .json({ error: "Файл слишком большой. Максимум 2 МБ." });
+      return res.status(413).json({
+        error:
+          "Запрос слишком большой. Каждый снимок должен быть не больше 2 МБ, весь запрос — до 6 МБ.",
+      });
     if (error.type === "entity.parse.failed")
       return res.status(400).json({ error: "Некорректный JSON." });
     console.error("Request failed:", error.message);

@@ -35,3 +35,10 @@ for c in [[(58.8,68.7),(60,69.6),(61,69.1),(61.2,70.7),(61.6,71.2),(61.3,72.3),(
 for lat,lon,text in [(62.4,69.3,'Ю Г Р А'),(62.8,64.8,'Обь'),(60.3,69,'Иртыш'),(64,60,'ПРИПОЛЯРНЫЙ УРАЛ')]:
     x,y=xy(lat,lon); out+=f'<text x="{x}" y="{y}" font-family="Georgia,serif" font-size="{28 if text.startswith("Ю") else 15}" fill="#7a8d7c" letter-spacing="3">{text}</text>'
 out+='</svg>'; (root/'map.svg').write_text(out)
+
+# A second, explicitly fictional view for the before/after demonstration.
+modern = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 600"><path fill="#d8e1d0" d="M0 0h900v600H0z"/><circle cx="710" cy="115" r="42" fill="#f4eccd"/><path d="M0 260Q150 190 380 260T900 240V600H0Z" fill="#a5b89e"/><path fill="#97ab87" d="M0 390h900v210H0z"/><path d="M280 600L455 350h80l170 250" fill="#c4c6b8"/><path d="M492 350L484 600" stroke="#efe9d2" stroke-width="3" stroke-dasharray="15 20"/>'
+for x,y,scale in [(40,315,1.2),(220,345,.8),(620,300,1.3),(515,340,.65)]:
+    modern+=f'<g transform="translate({x} {y}) scale({scale})"><path d="M0 0h140v105H0Z" fill="#e5dac1"/><path d="M-18 0l85-67L158 0Z" fill="#6f775b"/><path d="M19 19h25v33H19zm65 0h25v33H84z" fill="#a8c5c1" stroke="#f5ebd6" stroke-width="5"/><path d="M116-40v-37h13v50" fill="#827d63"/><path d="M0 80h140" stroke="#a8ab91" stroke-width="5"/></g>'
+modern+='<path d="M360 370v100m0-100h35m-35 100v55m230-135v90m-30-90h30" stroke="#748571" stroke-width="5"/><path d="M348 525h25m218-45h25" stroke="#566b57" stroke-width="4"/><path d="M55 505h200m-175-15v40m65-40v40m65-40v40" stroke="#d0c9b4" stroke-width="7"/></svg>'
+(root/'village-now.svg').write_text(modern)

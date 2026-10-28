@@ -22,12 +22,16 @@ import {
   categories,
   categoryLabel,
   imageFor,
+  dateFor,
   type Category,
   type Place,
 } from "./types";
 import Modal from "./components/Modal";
 import SubmissionForm from "./components/SubmissionForm";
 import Editor from "./components/Editor";
+import Timeline from "./components/Timeline";
+import BeforeAfter from "./components/BeforeAfter";
+import { PassportCard } from "./components/Passport";
 const MemoryMap = lazy(() => import("./components/MemoryMap"));
 type Page = "map" | "stories" | "routes" | "about" | "favorites";
 type Route = {
@@ -43,7 +47,7 @@ type Dialog =
   | { type: "route"; route: Route }
   | { type: "submit" | "editor" }
   | null;
-const routes: Route[] = [
+const demoRoutes: Route[] = [
   {
     id: "river",
     title: "По берегам памяти",
@@ -108,6 +112,7 @@ export default function App() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<Category | "all">("all");
   const [decade, setDecade] = useState("all");
+  const [yearRange, setYearRange] = useState<[number, number] | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [menu, setMenu] = useState(false);
   const [toast, setToast] = useState("");
@@ -180,6 +185,7 @@ export default function App() {
     const timer = window.setTimeout(() => setToast(""), 4500);
     return () => window.clearTimeout(timer);
   }, [toast]);
+  const hasCatalogue = places.some((p) => p.catalogue);
   const filtered = useMemo(() => {
     const query = search.toLocaleLowerCase("ru").replaceAll("ё", "е").trim();
     let result = places.filter((p) => {
@@ -189,17 +195,42 @@ export default function App() {
       return (
         (!query || haystack.includes(query)) &&
         (category === "all" || p.category === category) &&
-        (decade === "all" || Math.floor(p.year / 10) * 10 === Number(decade)) &&
-        (!onlyReal || !p.demo) &&
+        (decade === "all" ||
+          (p.year !== null &&
+            Math.floor(p.year / 10) * 10 === Number(decade))) &&
+        (!yearRange ||
+          (p.year !== null &&
+            p.year >= yearRange[0] &&
+            p.year <= yearRange[1])) &&
+        (!onlyReal || (hasCatalogue ? Boolean(p.passport) : !p.demo)) &&
         (page !== "favorites" || favorites.includes(p.id))
       );
     });
-    if (sort === "oldest") result = [...result].sort((a, b) => a.year - b.year);
-    if (sort === "newest") result = [...result].sort((a, b) => b.year - a.year);
+    if (sort !== "editorial")
+      result = [...result].sort(
+        (a, b) =>
+          Number(a.year === null) - Number(b.year === null) ||
+          ((a.year ?? 0) - (b.year ?? 0)) * (sort === "newest" ? -1 : 1),
+      );
     return result;
-  }, [places, search, category, decade, sort, page, favorites, onlyReal]);
+  }, [
+    places,
+    search,
+    category,
+    decade,
+    yearRange,
+    sort,
+    page,
+    favorites,
+    onlyReal,
+    hasCatalogue,
+  ]);
   const decades = [
-    ...new Set(places.map((p) => Math.floor(p.year / 10) * 10)),
+    ...new Set(
+      places.flatMap((p) =>
+        p.year === null ? [] : [Math.floor(p.year / 10) * 10],
+      ),
+    ),
   ].sort((a, b) => a - b);
   const favoriteCount = places.filter((p) => favorites.includes(p.id)).length;
   function navigate(next: Page) {
@@ -210,6 +241,7 @@ export default function App() {
     setSearch("");
     setCategory("all");
     setDecade("all");
+    setYearRange(null);
     setOnlyReal(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -240,6 +272,7 @@ export default function App() {
     setSearch("");
     setCategory("all");
     setDecade("all");
+    setYearRange(null);
     setOnlyReal(false);
   }
   function explore() {
@@ -247,6 +280,37 @@ export default function App() {
       .getElementById("explore")
       ?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
+  const routes: Route[] = hasCatalogue
+    ? [
+        {
+          id: "settlements",
+          title: "Исторические слои живых поселений",
+          subtitle: "МЕСТО ПРОДОЛЖАЕТ ЖИТЬ",
+          image: "village",
+          places: ["pas-012", "pas-022", "pas-026", "pas-030"],
+          description:
+            "Песчаный, Малоюганский, Тром-Аган и Банный присутствуют в реестрах населённых пунктов. Здесь собраны рабочие паспорта отдельных исторических слоёв, а не свидетельства исчезновения современных поселений. Это подборка для чтения, не маршрут.",
+        },
+        {
+          id: "memory",
+          title: "Память обских спецпосёлков",
+          subtitle: "ИСТОРИЯ И ИСТОЧНИКИ",
+          image: "river",
+          places: ["pas-011", "pas-013", "pas-015", "pas-035", "pas-036"],
+          description:
+            "Рабочие паспорта поселений, связанных с историей спецпереселения. Сведения составителя нуждаются в первичной архивной проверке. Координаты — гипотезы, не навигационные точки.",
+        },
+        {
+          id: "names",
+          title: "Старые имена на карте Югры",
+          subtitle: "ТОПОНИМЫ И ПРЕЕМСТВЕННОСТЬ",
+          image: "forest",
+          places: ["pas-003", "pas-005", "pas-009", "pas-024", "pas-033"],
+          description:
+            "Имена старых деревень и исторических городских территорий. В карточках сохранены оговорки исправленного свода. Подборка не задаёт путь посещения объектов.",
+        },
+      ]
+    : demoRoutes;
   const isArchive = ["map", "stories", "favorites"].includes(page);
   return (
     <>
@@ -473,7 +537,10 @@ export default function App() {
                 <select
                   aria-label="Десятилетие"
                   value={decade}
-                  onChange={(e) => setDecade(e.target.value)}
+                  onChange={(e) => {
+                    setDecade(e.target.value);
+                    setYearRange(null);
+                  }}
                 >
                   <option value="all">Все годы</option>
                   {decades.map((y) => (
@@ -490,15 +557,44 @@ export default function App() {
                 onClick={() => setOnlyReal((v) => !v)}
               >
                 <Check size={15} />
-                Без примеров
+                {hasCatalogue ? "С паспортом" : "Без примеров"}
               </button>
             </div>
+            <Timeline
+              places={places}
+              value={
+                yearRange ||
+                (decade !== "all" ? [Number(decade), Number(decade) + 9] : null)
+              }
+              onChange={(range) => {
+                setDecade("all");
+                setYearRange(range);
+              }}
+              onReset={() => {
+                setDecade("all");
+                setYearRange(null);
+              }}
+            />
             <div className="demo-notice">
               <span className="demo-dot" />
               <p>
-                <strong>Первая глава нашего архива.</strong> Стартовые карточки
-                — демонстрационные примеры, изображения — иллюстрации. Реальные
-                истории появятся после проверки редакцией.
+                {hasCatalogue ? (
+                  <>
+                    <strong>
+                      {places.filter((p) => p.catalogue).length} рабочих
+                      паспортов из вашего архива.
+                    </strong>{" "}
+                    Исторические сведения требуют сверки с первоисточниками.
+                    Координаты G1/P0 не подтверждены; гипотезы включаются на
+                    карте отдельно. Изображения — иллюстрации.
+                  </>
+                ) : (
+                  <>
+                    <strong>Первая глава нашего архива.</strong> Стартовые
+                    карточки — демонстрационные примеры, изображения —
+                    иллюстрации.
+                  </>
+                )}
               </p>
               <button onClick={() => setDialog({ type: "submit" })}>
                 Добавить свою <ArrowRight size={14} />
@@ -547,7 +643,7 @@ export default function App() {
                                   categories.find((c) => c.id === p.category)
                                     ?.short
                                 }{" "}
-                                <span>· {p.year} г.</span>
+                                <span>· {dateFor(p)}</span>
                               </div>
                               <h3>{p.title}</h3>
                               <span className="location">
@@ -976,7 +1072,11 @@ function StoryCard({
           />
         </button>
         <span className="image-badge">
-          {p.demo ? "ДЕМОНСТРАЦИЯ" : "ИСТОРИЯ ЖИТЕЛЯ"}
+          {p.demo
+            ? "ДЕМОНСТРАЦИЯ"
+            : p.verificationStatus === "working"
+              ? "РАБОЧИЙ ПАСПОРТ"
+              : "ИСТОРИЯ ЖИТЕЛЯ"}
         </span>
         <button
           className={`image-heart ${saved ? "is-saved" : ""}`}
@@ -989,7 +1089,7 @@ function StoryCard({
       </div>
       <div className="story-content">
         <div className="meta">
-          {categoryLabel(p.category)} <span>· {p.year}</span>
+          {categoryLabel(p.category)} <span>· {dateFor(p)}</span>
         </div>
         <button className="story-title" onClick={onOpen}>
           <h3>{p.title}</h3>
@@ -1043,7 +1143,7 @@ function PlaceDetail({
           }
         />
         <span className="image-badge">
-          {p.demo ? "АВТОРСКАЯ ИЛЛЮСТРАЦИЯ" : "МАТЕРИАЛ УЧАСТНИКА"}
+          {p.mediaId ? "ФОТОГРАФИЯ УЧАСТНИКА" : "АВТОРСКАЯ ИЛЛЮСТРАЦИЯ"}
         </span>
       </div>
       <div className="detail-body">
@@ -1054,8 +1154,21 @@ function PlaceDetail({
             <MapPin size={15} />
             {p.location}
           </span>
-          <span>{p.year} г. · приблизительная датировка</span>
+          <span>{dateFor(p)} · по материалам источника</span>
         </div>
+        {p.verificationStatus === "working" && (
+          <div className="source-warning">
+            <strong>
+              Рабочий историко-краеведческий паспорт · PAS-{p.id.slice(4)}
+            </strong>
+            <p>
+              Сведения составителя ещё не прошли независимую научную проверку.
+              Часть объектов — исторические слои действующих поселений.
+              Координаты не подтверждены полевой GPS-съёмкой и не предназначены
+              для навигации.
+            </p>
+          </div>
+        )}
         {p.demo && (
           <div className="demo-notice">
             <Sparkles size={18} />
@@ -1070,6 +1183,8 @@ function PlaceDetail({
             <p key={i}>{paragraph}</p>
           ))}
         </div>
+        <PassportCard passport={p.passport} />
+        <BeforeAfter key={p.id} place={p} />
         <div className="source-box">
           <BookOpen size={19} />
           <div>
@@ -1077,8 +1192,10 @@ function PlaceDetail({
             <p>{p.author}</p>
             <p>{p.source}</p>
             <small>
-              Координаты: {p.latitude.toFixed(4)}, {p.longitude.toFixed(4)} ·
-              могут быть приблизительными
+              {p.latitude !== null && p.longitude !== null
+                ? `Координатная гипотеза: ${p.latitude.toFixed(4)}, ${p.longitude.toFixed(4)}`
+                : "Местоположение не установлено"}{" "}
+              · не для навигации
             </small>
           </div>
         </div>

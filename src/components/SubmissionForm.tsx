@@ -1,30 +1,40 @@
 import { useState, type FormEvent } from "react";
-import { Check, ImagePlus, Send, MapPin, ArrowRight } from "lucide-react";
-import { api, categories } from "../types";
+import { Check, Send, MapPin, ArrowRight } from "lucide-react";
+import { api, categories, type Photo } from "../types";
+import PhotoUpload from "./PhotoUpload";
+import { PassportFields, readPassport } from "./Passport";
 export default function SubmissionForm({ onClose }: { onClose: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState("");
-  const [photo, setPhoto] = useState<{
-    data: string;
-    type: string;
-    name: string;
-  } | null>(null);
+  const [photo, setPhoto] = useState<Photo | null>(null);
+  const [afterPhoto, setAfterPhoto] = useState<Photo | null>(null);
+  const [uploading, setUploading] = useState({ before: false, after: false });
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError("");
+    if (uploading.before || uploading.after) return;
+    if (afterPhoto && !photo) {
+      setError("Для сравнения добавьте первый снимок или уберите второй.");
+      return;
+    }
     setBusy(true);
     const values = Object.fromEntries(new FormData(e.currentTarget).entries());
     try {
       const response = await api<{ id: string }>("/api/submissions", {
         method: "POST",
         body: JSON.stringify({
-          ...values,
+          ...readPassport(values),
           year: Number(values.year),
           latitude: Number(values.latitude),
           longitude: Number(values.longitude),
           consent: values.consent === "on",
           photo: photo ? { type: photo.type, data: photo.data } : undefined,
+          afterPhoto: afterPhoto
+            ? { type: afterPhoto.type, data: afterPhoto.data }
+            : undefined,
+          afterYear: afterPhoto ? Number(values.afterYear) : undefined,
+          afterSource: afterPhoto ? values.afterSource : undefined,
         }),
       });
       setResult(response.id);
@@ -32,29 +42,6 @@ export default function SubmissionForm({ onClose }: { onClose: () => void }) {
       setError((e as Error).message);
     } finally {
       setBusy(false);
-    }
-  }
-  async function choosePhoto(file?: File) {
-    setError("");
-    setPhoto(null);
-    if (!file) return;
-    if (
-      !["image/png", "image/jpeg", "image/webp"].includes(file.type) ||
-      file.size > 2 * 1024 * 1024
-    ) {
-      setError("Выберите JPEG, PNG или WebP не больше 2 МБ.");
-      return;
-    }
-    try {
-      const data = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result).split(",")[1]);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
-      setPhoto({ data, type: file.type, name: file.name });
-    } catch {
-      setError("Не удалось прочитать фотографию.");
     }
   }
   if (result)
@@ -182,32 +169,51 @@ export default function SubmissionForm({ onClose }: { onClose: () => void }) {
             placeholder="Что здесь находилось? Кто жил или работал? Что особенно запомнилось? Не менее 80 символов."
           />
         </label>
-        <label className="upload full">
-          <ImagePlus size={24} />
-          <span>
-            <strong>{photo ? photo.name : "Добавить фотографию"}</strong>
-            <small>JPEG, PNG, WebP · до 2 МБ · необязательно</small>
-          </span>
-          <input
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            onChange={(e) => choosePhoto(e.target.files?.[0])}
-          />
-        </label>
-        {photo && (
-          <div className="full photo-preview">
-            <img
-              alt="Выбранная фотография"
-              src={`data:${photo.type};base64,${photo.data}`}
-            />
-            <button
-              type="button"
-              className="text-button"
-              onClick={() => setPhoto(null)}
-            >
-              Убрать фотографию
-            </button>
-          </div>
+        <PhotoUpload
+          label="Первый снимок"
+          photo={photo}
+          onChange={setPhoto}
+          onBusy={(busy) => setUploading((p) => ({ ...p, before: busy }))}
+          onError={setError}
+        />
+        <div className="comparison-form-intro full">
+          <strong>Тогда и сейчас · по желанию</strong>
+          <p>
+            Есть второй снимок того же места? Добавьте его с годом и источником.
+            После проверки редактором в карточке появится сравнение.
+          </p>
+        </div>
+        <PhotoUpload
+          label="Второй снимок для сравнения"
+          photo={afterPhoto}
+          onChange={setAfterPhoto}
+          onBusy={(busy) => setUploading((p) => ({ ...p, after: busy }))}
+          onError={setError}
+        />
+        {afterPhoto && (
+          <>
+            <label>
+              Год второго снимка
+              <input
+                name="afterYear"
+                type="number"
+                min={1500}
+                max={new Date().getFullYear()}
+                required
+                placeholder="2020"
+              />
+            </label>
+            <label>
+              Источник второго снимка
+              <textarea
+                name="afterSource"
+                minLength={3}
+                maxLength={1000}
+                required
+                placeholder="Автор и правообладатель второго снимка"
+              />
+            </label>
+          </>
         )}
         <label className="full">
           Источник и автор фотографии
@@ -220,6 +226,7 @@ export default function SubmissionForm({ onClose }: { onClose: () => void }) {
             placeholder="Личный рассказ; семейный архив, фотограф — …; ссылка на источник"
           />
         </label>
+        <PassportFields />
         <label>
           Ваше имя
           <input
@@ -245,7 +252,7 @@ export default function SubmissionForm({ onClose }: { onClose: () => void }) {
         <label className="checkbox full">
           <input type="checkbox" name="consent" required />
           <span>
-            Я имею право передать текст и фотографию, получил(а) согласия
+            Я имею право передать текст и фотографии, получил(а) согласия
             изображённых людей и разрешаю публикацию материала с моим именем.
             Email доступен только редактору. Не передаю закрытые или
             чувствительные сведения.
@@ -262,7 +269,10 @@ export default function SubmissionForm({ onClose }: { onClose: () => void }) {
             <br />
             Затем — место на карте.
           </span>
-          <button className="button primary" disabled={busy}>
+          <button
+            className="button primary"
+            disabled={busy || uploading.before || uploading.after}
+          >
             {busy ? "Сохраняем…" : "Отправить историю"} <Send size={16} />
           </button>
         </div>
