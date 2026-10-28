@@ -46,6 +46,8 @@ for r in records:
 root=Path(__file__).resolve().parents[1]
 (root/'server/data/passports.json').write_text(json.dumps(items,ensure_ascii=False,indent=2)+'\n')
 manifest={'sourceFile':source.name,'sha256':hashlib.sha256(source.read_bytes()).hexdigest(),'folder':'https://drive.google.com/drive/folders/1-hNPJJAGgjt5ZCww0iakrtA9NXwe1Lls','count':len(items),'coordinateHypotheses':sum(x['latitude'] is not None for x in items),'unlocated':['pas-029'],'note':'Исправленный рабочий свод. Копии, прежние пакетные редакции и устаревший GPS-атлас не использованы. Разделы воспоминаний и поимённые списки не публикуются без отдельной проверки.'}
+manifest['publicDocumentUrl']='https://docs.google.com/document/d/1kE0OX_BCwmxX1CGJBc2IZ_Lvz5d7c2DNK4qMfhUK-wc/edit'
+manifest['publicAccessVerified']='2026-10-28'
 (root/'server/data/passport-sources.json').write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n')
 print(json.dumps({'cards':len(items),'coordinateHypotheses':manifest['coordinateHypotheses'],'withoutExactYear':sum(x['year'] is None for x in items)},ensure_ascii=False))
 for x in items: print(x['id'],x['title'],x['year'], 'hypothesis' if x['latitude'] else 'unlocated')
