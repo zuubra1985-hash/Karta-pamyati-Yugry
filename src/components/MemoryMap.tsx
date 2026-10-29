@@ -1,228 +1,88 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import L from "leaflet";
-import "leaflet/dist/leaflet.css";
-import { Layers, LocateFixed, Minus, Plus } from "lucide-react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { ArrowUpRight, MapPin, Maximize2 } from "lucide-react";
+import { fitMapView, hasCoordinates, parseCoordinates, yandexMapUrl, type Coordinates } from "../maps";
 import type { Place } from "../types";
-export default function MemoryMap({
-  places,
-  selected,
-  onSelect,
-}: {
+const OpenStreetMap = lazy(() => import("./OpenStreetMap"));
+
+export default function MemoryMap({ places, selected, onSelect, onFocus }: {
   places: Place[];
   selected: string | null;
-  onSelect: (p: Place) => void;
+  onSelect: (place: Place) => void;
+  onFocus: (id: string | null) => void;
 }) {
-  const container = useRef<HTMLDivElement>(null);
-  const map = useRef<L.Map | null>(null);
-  const markers = useRef<L.LayerGroup | null>(null);
-  const tile = useRef<L.TileLayer | null>(null);
-  const onSelectRef = useRef(onSelect);
-  const [osm, setOsm] = useState(false);
-  const [tileError, setTileError] = useState(false);
-  const [showHypotheses, setShowHypotheses] = useState(false);
-  const mapped = useMemo(
-    () =>
-      places.filter(
-        (p): p is Place & { latitude: number; longitude: number } =>
-          p.latitude !== null &&
-          p.longitude !== null &&
-          (p.coordinateStatus !== "hypothesis" || showHypotheses),
-      ),
-    [places, showHypotheses],
-  );
-  onSelectRef.current = onSelect;
+  const [provider, setProvider] = useState<"yandex" | "osm">(() => {
+    try { return localStorage.getItem("yugra-map-provider") === "osm" ? "osm" : "yandex"; }
+    catch { return "yandex"; }
+  });
+  const [includeApproximate, setIncludeApproximate] = useState(true);
+  const [coordinateInput, setCoordinateInput] = useState("");
+  const [coordinateError, setCoordinateError] = useState("");
+  const [searchPoint, setSearchPoint] = useState<Coordinates | null>(null);
+  const viewport = useRef<HTMLDivElement>(null);
+  const [size, setSize] = useState({ width: 800, height: 470 });
+  const numbered = useMemo(() => places
+    .filter((p): p is Place & Coordinates => hasCoordinates(p))
+    .map((p, i) => ({ ...p, markerNumber: i + 1, approximate: p.coordinateStatus === "hypothesis" })), [places]);
+  const points = useMemo(() => numbered.filter((p) => includeApproximate || !p.approximate), [numbered, includeApproximate]);
+  const focused = points.find((p) => p.id === selected);
+  const displayed = searchPoint ? [{ ...searchPoint, id: "coordinate-search", title: "Введённая точка" }] : focused ? [focused] : points;
+  const view = useMemo(() => fitMapView(searchPoint ? [searchPoint] : focused ? [focused] : points, size.width, size.height), [searchPoint, focused, points, size]);
+  useEffect(() => { if (selected) setSearchPoint(null); }, [selected]);
   useEffect(() => {
-    const instance = L.map(container.current!, {
-      center: [62.1, 69.5],
-      zoom: 5,
-      minZoom: 4,
-      maxZoom: 15,
-      zoomControl: false,
-      // Leaflet's delayed zoom callback can outlive a map removed by navigation.
-      zoomAnimation: false,
-      scrollWheelZoom: false,
+    if (numbered.some((p) => p.id === selected && p.approximate)) setIncludeApproximate(true);
+  }, [selected, numbered]);
+  useEffect(() => {
+    if (!viewport.current) return;
+    const observer = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      if (width > 0 && height > 0) setSize({ width: Math.round(width), height: Math.round(height) });
     });
-    L.imageOverlay(
-      "/images/map.svg",
-      [
-        [58, 58],
-        [67, 86],
-      ],
-      { opacity: 1, interactive: false },
-    ).addTo(instance);
-    instance.attributionControl.setPrefix(false);
-    instance.attributionControl.addAttribution(
-      "Авторская схема · не для навигации",
-    );
-    L.control
-      .scale({ imperial: false, position: "bottomleft" })
-      .addTo(instance);
-    markers.current = L.layerGroup().addTo(instance);
-    map.current = instance;
-    instance.fitBounds(
-      [
-        [59.4, 60.2],
-        [64.9, 77.6],
-      ],
-      { padding: [35, 35] },
-    );
-    const observer = new ResizeObserver(() => {
-      instance.invalidateSize();
-      instance.fitBounds(
-        [
-          [59.4, 60.2],
-          [64.9, 77.6],
-        ],
-        { padding: [35, 45], animate: false },
-      );
-    });
-    observer.observe(container.current!);
-    return () => {
-      observer.disconnect();
-      instance.remove();
-      map.current = null;
-    };
+    observer.observe(viewport.current);
+    return () => observer.disconnect();
   }, []);
-  useEffect(() => {
-    const group = markers.current;
-    if (!group) return;
-    group.clearLayers();
-    mapped.forEach((p) => {
-      // Marker markup contains only constant icons. User strings are text nodes.
-      const icon = L.divIcon({
-        className: "memory-pin-container",
-        html: `<span class="memory-pin ${p.coordinateStatus === "hypothesis" ? "hypothesis" : ""} ${p.id === selected ? "active" : ""}"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 20V9l8-5 8 5v11M8 20v-7h8v7M2 20h20M9 8h6"/></svg></span>`,
-        iconSize: [36, 44],
-        iconAnchor: [18, 40],
-      });
-      const marker = L.marker([p.latitude, p.longitude], {
-        icon,
-        title: p.title,
-        alt: p.title,
-        keyboard: true,
-      }).addTo(group);
-      marker.on("click", () => onSelectRef.current(p));
-      const label = document.createElement("span");
-      label.textContent = p.catalogue ? p.title : p.location;
-      marker.bindTooltip(label, {
-        permanent: p.coordinateStatus !== "hypothesis",
-        direction: p.id === "megion" ? "top" : "bottom",
-        offset: p.id === "megion" ? [0, -35] : [0, 5],
-        className: "place-map-label",
-      });
-    });
-  }, [mapped, selected]);
-  useEffect(() => {
-    if (showHypotheses && mapped.length)
-      map.current?.fitBounds(
-        L.latLngBounds(mapped.map((p) => [p.latitude, p.longitude])),
-        { padding: [45, 45], maxZoom: 9 },
-      );
-  }, [showHypotheses, mapped]);
-  useEffect(() => {
-    const p = mapped.find((p) => p.id === selected);
-    if (
-      p &&
-      map.current &&
-      !map.current.getBounds().contains([p.latitude, p.longitude])
-    )
-      map.current.panTo([p.latitude, p.longitude]);
-  }, [selected, mapped]);
-  useEffect(() => {
-    if (!map.current) return;
-    if (osm) {
-      tile.current = L.tileLayer(
-        "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-        {
-          maxZoom: 19,
-          attribution:
-            '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-        },
-      ).addTo(map.current);
-      tile.current.on("tileerror", () => setTileError(true));
-    } else {
-      tile.current?.remove();
-      tile.current = null;
-      setTileError(false);
-    }
-    return () => {
-      tile.current?.remove();
-      tile.current = null;
-    };
-  }, [osm]);
+  function choose(next: "yandex" | "osm") {
+    setProvider(next);
+    try { localStorage.setItem("yugra-map-provider", next); } catch { /* The map also works without saved preferences. */ }
+  }
   return (
-    <div className="map-wrap">
-      <div
-        ref={container}
-        className="memory-map"
-        role="region"
-        aria-label="Интерактивная карта памятных мест Югры"
-      />
-      <div className="map-caption">
-        <span className="live-dot" />{" "}
-        {osm ? "OpenStreetMap" : "Югра · карта воспоминаний"}
-      </div>
-      {places.some((p) => p.coordinateStatus === "hypothesis") && (
-        <div className="hypothesis-controls">
-          <button
-            aria-pressed={showHypotheses}
-            onClick={() => setShowHypotheses((v) => !v)}
-          >
-            {showHypotheses ? "Скрыть гипотезы" : "Показать гипотезы"} ·{" "}
-            {places.filter((p) => p.coordinateStatus === "hypothesis").length}
-          </button>
-          <span>
-            {showHypotheses
-              ? "Приблизительные местоположения · не для навигации"
-              : "Точки не подтверждены. Карточки доступны в списке."}
-          </span>
+    <div className="map-wrap geographic-map" role="region" aria-label="Интерактивная карта памятных мест Югры">
+      <div className="geographic-toolbar">
+        <div className="map-providers" aria-label="Сервис карты">
+          <button aria-pressed={provider === "yandex"} onClick={() => choose("yandex")}>Яндекс Карты</button>
+          <button aria-pressed={provider === "osm"} onClick={() => choose("osm")}>OpenStreetMap</button>
         </div>
-      )}
-      <div className="map-controls">
-        <button
-          aria-label="Приблизить карту"
-          onClick={() => map.current?.zoomIn()}
-        >
-          <Plus size={19} />
-        </button>
-        <button
-          aria-label="Отдалить карту"
-          onClick={() => map.current?.zoomOut()}
-        >
-          <Minus size={19} />
-        </button>
-        <span />
-        <button
-          aria-label="Показать все места"
-          onClick={() => {
-            if (mapped.length)
-              map.current?.fitBounds(
-                L.latLngBounds(mapped.map((p) => [p.latitude, p.longitude])),
-                { padding: [45, 45], maxZoom: 9 },
-              );
-          }}
-        >
-          <LocateFixed size={19} />
-        </button>
+        <button className="map-fit" onClick={() => { setSearchPoint(null); setCoordinateError(""); onFocus(null); }}><Maximize2 size={14} /> Все объекты</button>
       </div>
-      <button
-        className="map-layer"
-        onClick={() => setOsm((v) => !v)}
-        aria-pressed={osm}
-      >
-        <Layers size={16} />
-        {osm ? "Авторская схема" : "Карта OSM"}
-      </button>
-      {tileError && (
-        <div className="map-warning" role="status">
-          Подложка OSM недоступна.{" "}
-          <button onClick={() => setOsm(false)}>Показать схему</button>
-        </div>
-      )}
-      <div className="map-legend">
-        <span className="legend-pin" /> Место с историей{" "}
-        <span className="legend-line" /> Реки
+      <form className="map-coordinate-search" onSubmit={(event) => {
+        event.preventDefault();
+        const point = parseCoordinates(coordinateInput);
+        if (!point) { setCoordinateError("Проверьте координаты: сначала широта, затем долгота. Например: 61.24, 73.4."); return; }
+        onFocus(null); setSearchPoint(point); setCoordinateError("");
+      }}>
+        <label><span className="sr-only">Найти координаты на карте</span><input value={coordinateInput} onChange={(e) => setCoordinateInput(e.target.value)} placeholder="Координаты из паспорта: 61.24, 73.4" /></label>
+        <button type="submit">Найти точку</button>
+      </form>
+      {coordinateError && <p className="map-coordinate-error" role="alert">{coordinateError}</p>}
+      <div ref={viewport} className="geographic-viewport">
+        {provider === "yandex" ? (
+          <iframe className="yandex-map" title="Яндекс Карты — поселения Югры" src={yandexMapUrl(displayed, view)} allowFullScreen referrerPolicy="strict-origin-when-cross-origin" />
+        ) : (
+          <Suspense fallback={<div className="loading">Загружаем карту…</div>}>
+            <OpenStreetMap points={points} selected={selected} onSelect={onSelect} searchPoint={searchPoint} />
+          </Suspense>
+        )}
       </div>
+      <div className="geographic-footer">
+        <span><MapPin size={14} /> {searchPoint ? "Введённая точка" : focused ? "Выбранное место" : `На карте: ${points.length}`}{!searchPoint && places.length > numbered.length ? ` · без координат: ${places.length - numbered.length}` : ""}</span>
+        <a href={yandexMapUrl(displayed, view, false)} target="_blank" rel="noopener noreferrer">Открыть в Яндексе <ArrowUpRight size={14} /></a>
+      </div>
+      {numbered.some((p) => p.approximate) && (
+        <label className="map-approximate"><input type="checkbox" checked={includeApproximate} onChange={(e) => {
+          setIncludeApproximate(e.target.checked);
+          if (!e.target.checked && focused?.approximate) onFocus(null);
+        }} /><span>Показывать примерные местоположения <small>Точное положение этих объектов не подтверждено.</small></span></label>
+      )}
+      {focused && <div className="map-focused-place"><span>{focused.markerNumber}. {focused.title}</span><button onClick={() => onSelect(focused)}>Открыть карточку <ArrowUpRight size={14} /></button></div>}
     </div>
   );
 }

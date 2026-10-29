@@ -47,6 +47,17 @@ export interface Place {
   coordinateStatus?: "hypothesis" | "unknown";
   verificationStatus?: "working" | "verified";
   verification?: { by: "project_owner"; confirmedOn: string };
+  memories?: ResidentMemory[];
+}
+export interface ResidentMemory {
+  id: string;
+  placeIds: string[];
+  narrator: string;
+  title: string;
+  period: string;
+  summary: string;
+  quote?: string;
+  source: { title: string; url: string; publisher: string };
 }
 export interface Submission
   extends Omit<

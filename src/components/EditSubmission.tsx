@@ -2,6 +2,8 @@ import { useState, type FormEvent } from "react";
 import { Save } from "lucide-react";
 import { api, categories, type Submission } from "../types";
 import { PassportFields, readPassport } from "./Passport";
+import CoordinatesFields from "./CoordinatesFields";
+import { readCoordinates } from "../maps";
 export default function EditSubmission({
   item,
   onSaved,
@@ -24,8 +26,7 @@ export default function EditSubmission({
         body: JSON.stringify({
           ...readPassport(data),
           year: Number(data.year),
-          latitude: Number(data.latitude),
-          longitude: Number(data.longitude),
+          ...readCoordinates(data),
           afterYear: item.afterMediaId ? Number(data.afterYear) : undefined,
           revision: item.revision,
         }),
@@ -95,30 +96,7 @@ export default function EditSubmission({
           required
         />
       </label>
-      <label>
-        Широта материала
-        <input
-          name="latitude"
-          type="number"
-          step="any"
-          min={58}
-          max={67}
-          defaultValue={item.latitude}
-          required
-        />
-      </label>
-      <label>
-        Долгота материала
-        <input
-          name="longitude"
-          type="number"
-          step="any"
-          min={58}
-          max={86}
-          defaultValue={item.longitude}
-          required
-        />
-      </label>
+      <CoordinatesFields initial={item} editorial />
       <label className="full">
         Текст материала
         <textarea

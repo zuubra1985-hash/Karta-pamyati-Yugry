@@ -34,8 +34,10 @@ import BeforeAfter from "./components/BeforeAfter";
 import { PassportCard } from "./components/Passport";
 import { loadArchive, type ArchiveMode } from "./archive";
 import { publicPlaceContent } from "./content";
+import { googleMapUrl, hasCoordinates, yandexMapUrl } from "./maps";
+import ResidentMemories from "./components/ResidentMemories";
 const MemoryMap = lazy(() => import("./components/MemoryMap"));
-type Page = "map" | "stories" | "routes" | "about" | "favorites";
+type Page = "map" | "stories" | "memories" | "routes" | "about" | "favorites";
 type Route = {
   id: string;
   title: string;
@@ -81,6 +83,7 @@ const demoRoutes: Route[] = [
 const nav: { id: Page; label: string }[] = [
   { id: "map", label: "Карта мест" },
   { id: "stories", label: "Истории" },
+  { id: "memories", label: "Воспоминания" },
   { id: "routes", label: "Маршруты памяти" },
   { id: "about", label: "О проекте" },
 ];
@@ -176,7 +179,7 @@ export default function App() {
         }
       } else {
         setPage(
-          (["map", "stories", "routes", "about", "favorites"].includes(hash)
+          (["map", "stories", "memories", "routes", "about", "favorites"].includes(hash)
             ? hash
             : "map") as Page,
         );
@@ -240,6 +243,10 @@ export default function App() {
     ),
   ].sort((a, b) => a - b);
   const favoriteCount = places.filter((p) => favorites.includes(p.id)).length;
+  const memories = useMemo(() => [...new Map(places.flatMap((p) => (p.memories || []).map((memory) => [memory.id, memory] as const))).values()], [places]);
+  const placeTitles = useMemo(() => new Map(places.map((p) => [p.id, p.title])), [places]);
+  const filteredMemories = useMemo(() => memories.filter((memory) => `${memory.narrator} ${memory.title} ${memory.summary} ${memory.placeIds.map((id) => placeTitles.get(id) || "").join(" ")}`.toLocaleLowerCase("ru").replaceAll("ё", "е").includes(search.toLocaleLowerCase("ru").replaceAll("ё", "е").trim())), [memories, placeTitles, search]);
+  const mapNumbers = useMemo(() => new Map(filtered.filter((p) => hasCoordinates(p)).map((p, i) => [p.id, i + 1])), [filtered]);
   function navigate(next: Page) {
     window.location.hash = next;
     setPage(next);
@@ -269,6 +276,14 @@ export default function App() {
     setSelected(place.id);
     setDialog({ type: "place", place });
     window.history.replaceState(null, "", `#place/${place.id}`);
+  }
+  function showOnMap(place: Place) {
+    setPage("map");
+    setDialog(null);
+    resetFilters();
+    setSelected(place.id);
+    window.history.replaceState(null, "", "#map");
+    window.setTimeout(explore, 0);
   }
   function closeDialog() {
     setDialog(null);
@@ -465,6 +480,8 @@ export default function App() {
             <h1>
               {page === "stories"
                 ? "Истории, которые рядом."
+                : page === "memories"
+                  ? "Голоса родного края."
                 : page === "favorites"
                   ? "Места, которые дороги."
                   : page === "routes"
@@ -474,6 +491,8 @@ export default function App() {
             <p>
               {page === "stories"
                 ? "Небольшие рассказы складываются в большую историю нашего края."
+                : page === "memories"
+                  ? "Личные воспоминания жителей: фрагменты и краткие пересказы опубликованных свидетельств."
                 : page === "favorites"
                   ? "Ваш личный список мест. Сохраняется в этом браузере на этом устройстве."
                   : page === "routes"
@@ -593,7 +612,7 @@ export default function App() {
                       {places.filter((p) => p.catalogue).length} историй
                       поселений Югры.
                     </strong>{" "}
-                    Приблизительные местоположения включаются на карте отдельно.
+                    Часть местоположений указана приблизительно.
                     Изображения — иллюстрации.
                   </>
                 ) : (
@@ -660,6 +679,11 @@ export default function App() {
                               </span>
                             </div>
                           </button>
+                          {hasCoordinates(p) && (
+                            <button className="mini-card-map" aria-label={`Показать на карте: ${p.title}`} onClick={() => showOnMap(p)}>
+                              <MapPin size={12} /> {mapNumbers.get(p.id)}. На карте
+                            </button>
+                          )}
                           <button
                             className={`card-heart ${favorites.includes(p.id) ? "is-saved" : ""}`}
                             onClick={() => toggleFavorite(p.id)}
@@ -689,6 +713,7 @@ export default function App() {
                     places={filtered}
                     selected={selected}
                     onSelect={openPlace}
+                    onFocus={setSelected}
                   />
                 </Suspense>
               </div>
@@ -773,6 +798,16 @@ export default function App() {
                 />
               ))}
             </div>
+          </section>
+        )}
+        {page === "memories" && (
+          <section className="container memoir-page">
+            <label className="search-field"><Search size={19} /><input aria-label="Поиск по воспоминаниям" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Рассказчик, поселение или слово из воспоминания…" /></label>
+            {filteredMemories.length ? <ResidentMemories
+              memories={filteredMemories}
+              placeTitles={placeTitles}
+              onPlace={(id) => { const place = places.find((p) => p.id === id); if (place) openPlace(place); }}
+            /> : <div className="empty"><h3>{memories.length ? "Воспоминания не найдены" : "Воспоминания ещё не добавлены"}</h3><p>{memories.length ? "Попробуйте другое имя или название поселения." : "В этом архиве пока нет опубликованных личных свидетельств."}</p></div>}
           </section>
         )}
         {page === "routes" && (
@@ -1009,6 +1044,7 @@ export default function App() {
               onFavorite={() => toggleFavorite(dialog.place.id)}
               onShare={() => setToast("Ссылка на историю скопирована.")}
               onContribute={() => setDialog({ type: "submit" })}
+              onMap={() => showOnMap(dialog.place)}
             />
           )}
           {dialog.type === "route" && (
@@ -1123,6 +1159,7 @@ function StoryCard({
           <h3>{p.title}</h3>
         </button>
         <p>{p.summary}</p>
+        {Boolean(p.memories?.length) && <button className="memoir-availability" onClick={onOpen}><BookOpen size={14} /> Воспоминания жителей · {p.memories!.length}</button>}
         <div className="story-bottom">
           <span>
             <MapPin size={13} />
@@ -1142,12 +1179,14 @@ function PlaceDetail({
   onFavorite,
   onShare,
   onContribute,
+  onMap,
 }: {
   place: Place;
   saved: boolean;
   onFavorite: () => void;
   onShare: () => void;
   onContribute: () => void;
+  onMap: () => void;
 }) {
   const p = publicPlaceContent(place);
   const [shareFallback, setShareFallback] = useState("");
@@ -1185,6 +1224,13 @@ function PlaceDetail({
           </span>
           <span>{dateFor(p)}</span>
         </div>
+        {hasCoordinates(p) && (
+          <div className="place-location-links">
+            <button className="button secondary" onClick={onMap}><MapPin size={15} /> Показать на карте</button>
+            <a href={yandexMapUrl([{ ...p, approximate: p.coordinateStatus === "hypothesis" }], { ...p, zoom: 13 }, false)} target="_blank" rel="noopener noreferrer">Яндекс Карты <ArrowUpRight size={14} /></a>
+            <a href={googleMapUrl(p)} target="_blank" rel="noopener noreferrer">Google Maps <ArrowUpRight size={14} /></a>
+          </div>
+        )}
         {p.demo && (
           <div className="demo-notice">
             <Sparkles size={18} />
@@ -1199,6 +1245,7 @@ function PlaceDetail({
             <p key={i}>{paragraph}</p>
           ))}
         </div>
+        <ResidentMemories memories={p.memories || []} />
         <PassportCard passport={p.passport} />
         <BeforeAfter key={p.id} place={p} />
         <div className="source-box">
@@ -1209,7 +1256,7 @@ function PlaceDetail({
             <p>{p.source}</p>
             <small>
               {p.latitude !== null && p.longitude !== null
-                ? `Координатная гипотеза: ${p.latitude.toFixed(4)}, ${p.longitude.toFixed(4)}`
+                ? `${p.coordinateStatus === "hypothesis" ? "Примерное местоположение" : "Координаты"}: ${p.latitude.toFixed(5)}, ${p.longitude.toFixed(5)}`
                 : "Местоположение не установлено"}{" "}
               · не для навигации
             </small>

@@ -1,7 +1,9 @@
 import { useState, type FormEvent } from "react";
-import { Check, Send, MapPin, ArrowRight } from "lucide-react";
+import { Check, Send, ArrowRight } from "lucide-react";
 import { api, categories, type Photo } from "../types";
 import PhotoUpload from "./PhotoUpload";
+import CoordinatesFields from "./CoordinatesFields";
+import { readCoordinates } from "../maps";
 import { PassportFields, readPassport } from "./Passport";
 export default function SubmissionForm({ onClose }: { onClose: () => void }) {
   const [busy, setBusy] = useState(false);
@@ -26,8 +28,7 @@ export default function SubmissionForm({ onClose }: { onClose: () => void }) {
         body: JSON.stringify({
           ...readPassport(values),
           year: Number(values.year),
-          latitude: Number(values.latitude),
-          longitude: Number(values.longitude),
+          ...readCoordinates(values),
           consent: values.consent === "on",
           photo: photo ? { type: photo.type, data: photo.data } : undefined,
           afterPhoto: afterPhoto
@@ -127,37 +128,7 @@ export default function SubmissionForm({ onClose }: { onClose: () => void }) {
             placeholder="1975"
           />
         </label>
-        <div className="form-hint">
-          <MapPin size={18} />
-          <span>
-            Не знаете точный адрес? Укажите координаты центра населённого пункта
-            и поясните это в рассказе.
-          </span>
-        </div>
-        <label>
-          Широта
-          <input
-            name="latitude"
-            type="number"
-            step="any"
-            min={58}
-            max={67}
-            required
-            placeholder="61.2408"
-          />
-        </label>
-        <label>
-          Долгота
-          <input
-            name="longitude"
-            type="number"
-            step="any"
-            min={58}
-            max={86}
-            required
-            placeholder="73.4072"
-          />
-        </label>
+        <CoordinatesFields />
         <label className="full">
           Ваша история
           <textarea

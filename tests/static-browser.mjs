@@ -24,6 +24,8 @@ const browser = await chromium.launch({
   args: ["--no-sandbox"],
 });
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+await page.route("https://*.tile.openstreetmap.org/**", (route) => route.fulfill({ status: 200, contentType: "image/png", body: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aMWQAAAAASUVORK5CYII=", "base64") }));
+await page.route("https://yandex.ru/map-widget/**", (route) => route.fulfill({ status: 200, contentType: "text/html", body: "<html><body>Map provider stub for repeatable UI tests</body></html>" }));
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
 const passed = [];
@@ -31,14 +33,45 @@ try {
   const published = JSON.parse(readFileSync("dist/catalogue/places.json", "utf8"));
   assert.equal(published.length, 36);
   assert.ok(published.every((p) => p.passport && !p.contact && !p.password));
+  assert.ok(published.flatMap((p) => p.memories).every((memory) => memory && !Object.hasOwn(memory, "evidence")));
   await page.goto(origin, { waitUntil: "networkidle" });
   assert.equal(await page.locator(".mini-card").count(), 36);
   assert.match(await page.locator(".hero-facts").textContent(), /36/);
   assert.match(await page.locator(".demo-notice").textContent(), /36 историй/);
-  assert.equal(await page.locator(".memory-pin.hypothesis").count(), 0);
-  await page.getByRole("button", { name: /^Показать гипотезы/ }).click();
-  assert.equal(await page.locator(".memory-pin.hypothesis").count(), 32);
-  passed.push("Static deployment: 36 passports and 32 opt-in coordinate hypotheses without an API");
+  const mapFrame = page.getByTitle("Яндекс Карты — поселения Югры");
+  await mapFrame.waitFor();
+  assert.equal(new URL(await mapFrame.getAttribute("src")).searchParams.get("pt").split("~").length, 32);
+  await page.getByLabel("Показывать примерные местоположения", { exact: false }).uncheck();
+  assert.equal(new URL(await mapFrame.getAttribute("src")).searchParams.get("pt"), null);
+  await page.getByLabel("Показывать примерные местоположения", { exact: false }).check();
+  assert.equal(new URL(await mapFrame.getAttribute("src")).searchParams.get("pt").split("~").length, 32);
+  await page.getByRole("button", { name: "Показать на карте: п. Рябиновый", exact: true }).click();
+  const focusUrl = new URL(await mapFrame.getAttribute("src"));
+  assert.equal(focusUrl.searchParams.get("ll"), "72.892667,61.396667");
+  assert.equal(focusUrl.searchParams.get("pt").split("~").length, 1);
+  await page.getByLabel("Показывать примерные местоположения", { exact: false }).uncheck();
+  assert.equal(new URL(await mapFrame.getAttribute("src")).searchParams.get("pt"), null);
+  await page.getByRole("button", { name: "Показать на карте: п. Рябиновый", exact: true }).click();
+  await page.waitForFunction(() => {
+    const frame = document.querySelector('iframe[title="Яндекс Карты — поселения Югры"]');
+    return frame && new URL(frame.src).searchParams.get("pt") === "72.892667,61.396667";
+  });
+  assert.equal(new URL(await mapFrame.getAttribute("src")).searchParams.get("pt"), "72.892667,61.396667");
+  await page.getByRole("button", { name: "Все объекты", exact: true }).click();
+  assert.equal(new URL(await mapFrame.getAttribute("src")).searchParams.get("pt").split("~").length, 32);
+  passed.push("Static deployment: Yandex map receives 32 real coordinate pairs, filters approximate points and focuses the selected passport");
+
+  await page.getByLabel("Найти координаты на карте", { exact: true }).fill("61°14′24″ с. ш., 73°24′00″ в. д.");
+  await page.getByRole("button", { name: "Найти точку", exact: true }).click();
+  assert.equal(new URL(await mapFrame.getAttribute("src")).searchParams.get("ll"), "73.4,61.24");
+  assert.equal(new URL(await mapFrame.getAttribute("src")).searchParams.get("pt"), "73.4,61.24");
+  await page.getByLabel("Найти координаты на карте", { exact: true }).fill("73.4, 61.24");
+  await page.getByRole("button", { name: "Найти точку", exact: true }).click();
+  assert.match(await page.getByRole("alert").textContent(), /сначала широта/);
+  assert.equal(new URL(await mapFrame.getAttribute("src")).searchParams.get("pt"), "73.4,61.24");
+  await page.getByRole("button", { name: "Все объекты", exact: true }).click();
+  assert.equal(new URL(await mapFrame.getAttribute("src")).searchParams.get("pt").split("~").length, 32);
+  passed.push("Static deployment: public coordinate finder accepts DMS and rejects reversed axes without changing the selected point");
 
   await page.getByRole("textbox", { name: "Поиск по архиву" }).fill("Немчинова");
   assert.equal(await page.locator(".mini-card").count(), 1);
@@ -61,8 +94,23 @@ try {
   await page.locator(".main-nav").getByRole("link", { name: "Истории", exact: true }).click();
   assert.equal(await page.locator(".story-card").count(), 36);
   passed.push("Static deployment: direct passport links and 36 story cards");
+  await page.locator(".main-nav").getByRole("link", { name: "Воспоминания", exact: true }).click();
+  assert.equal(await page.locator(".memoir-card").count(), 5);
+  await page.getByLabel("Поиск по воспоминаниям").fill("Флейшман");
+  assert.equal(await page.locator(".memoir-card").count(), 1);
+  assert.match(await page.locator(".memoir-narrator").textContent(), /Георгий Флейшман/);
+  assert.ok(await page.locator('.memoir-source a[href^="https://stribuna.ru/"]').count());
+  await page.getByLabel("Поиск по воспоминаниям").fill("несуществующий рассказчик");
+  await page.getByRole("heading", { name: "Воспоминания не найдены" }).waitFor();
+  await page.getByLabel("Поиск по воспоминаниям").fill("Флейшман");
+  await page.locator(".memoir-places button").click();
+  await page.locator(".place-detail .resident-memories").waitFor();
+  assert.equal(await page.locator(".place-detail .memoir-card").count(), 2);
+  await page.keyboard.press("Escape");
+  passed.push("Static deployment: five attributed memoirs, narrator search, original publication and correct links to the settlement");
 
   await page.locator(".main-nav").getByRole("link", { name: "Карта мест", exact: true }).click();
+  await page.getByRole("button", { name: "OpenStreetMap", exact: true }).click();
   await page.getByRole("button", { name: "Приблизить карту", exact: true }).waitFor();
   await page.evaluate(() => {
     document.querySelector('button[aria-label="Приблизить карту"]').click();

@@ -3,6 +3,7 @@ import helmet from "helmet";
 import { rateLimit } from "express-rate-limit";
 import { z } from "zod";
 import { submissionSchema, editorialSchema } from "./schemas.mjs";
+import { withMemories } from "./memories.mjs";
 
 function decodePhoto(photo) {
   if (!photo) return null;
@@ -45,6 +46,7 @@ export function createApp(store, { production = false, origin } = {}) {
               ],
               connectSrc: ["'self'"],
               fontSrc: ["'self'"],
+              frameSrc: ["https://yandex.ru"],
               objectSrc: ["'none'"],
               upgradeInsecureRequests: null,
             },
@@ -94,11 +96,11 @@ export function createApp(store, { production = false, origin } = {}) {
       message: { error: "Слишком много запросов. Попробуйте через 15 минут." },
     });
   app.get("/api/health", (_, res) => res.json({ status: "ok" }));
-  app.get("/api/places", (_, res) => res.json(store.places()));
+  app.get("/api/places", (_, res) => res.json(store.places().map(withMemories)));
   app.get("/api/places/:id", (req, res) => {
     const place = store.place(req.params.id);
     return place
-      ? res.json(place)
+      ? res.json(withMemories(place))
       : res.status(404).json({ error: "Место не найдено." });
   });
   app.post("/api/submissions", limiter(10), (req, res) => {

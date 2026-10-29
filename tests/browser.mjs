@@ -19,6 +19,12 @@ const browser = await chromium.launch({
   args: ["--no-sandbox"],
 });
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+await page.addInitScript(() => {
+  if (window !== window.top) return;
+  try { localStorage.setItem("yugra-map-provider", "osm"); } catch { /* Unavailable on opaque documents. */ }
+});
+await page.route("https://*.tile.openstreetmap.org/**", (route) => route.fulfill({ status: 200, contentType: "image/png", body: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aMWQAAAAASUVORK5CYII=", "base64") }));
+await page.route("https://yandex.ru/map-widget/**", (route) => route.fulfill({ status: 200, contentType: "text/html", body: "<html><body>Map provider stub for repeatable UI tests</body></html>" }));
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
 const passed = [];
@@ -117,8 +123,14 @@ try {
     .fill("Воспоминание из браузерной проверки");
   await dialog.getByLabel("Город или посёлок").fill("Сургут");
   await dialog.getByLabel("Примерный год").fill("1975");
-  await dialog.getByLabel("Широта").fill("61.24");
-  await dialog.getByLabel("Долгота").fill("73.4");
+  await dialog.getByLabel("Координаты из паспорта").fill("61°14′24″ с. ш., 73°24′00″ в. д.");
+  await dialog.getByRole("button", { name: "Применить координаты", exact: true }).click();
+  assert.equal(await dialog.getByLabel("Широта", { exact: true }).inputValue(), "61.24");
+  assert.equal(await dialog.getByLabel("Долгота", { exact: true }).inputValue(), "73.4");
+  const preview = dialog.getByTitle("Предпросмотр координат на Яндекс Картах");
+  await preview.waitFor();
+  assert.equal(new URL(await preview.getAttribute("src")).searchParams.get("ll"), "73.4,61.24");
+  passed.push("Passport coordinates: pasted DMS values normalize to decimal degrees and preview without reversed axes");
   await dialog
     .getByLabel("Ваша история")
     .fill(
@@ -328,8 +340,10 @@ try {
   await page.goto(origin + "/#map", { waitUntil: "networkidle" });
   await page.reload({ waitUntil: "networkidle" });
   assert.equal(await page.locator(".mini-card").count(), 38);
+  assert.equal(await page.locator(".memory-pin.hypothesis").count(), 32);
+  await page.getByLabel("Показывать примерные местоположения", { exact: false }).uncheck();
   assert.equal(await page.locator(".memory-pin.hypothesis").count(), 0);
-  await page.getByRole("button", { name: /^Показать гипотезы/ }).click();
+  await page.getByLabel("Показывать примерные местоположения", { exact: false }).check();
   assert.equal(await page.locator(".memory-pin.hypothesis").count(), 32);
   await page.getByRole("textbox", { name: "Поиск по архиву" }).fill("Кедровый");
   assert.equal(await page.locator(".mini-card").count(), 1);
@@ -376,7 +390,7 @@ try {
     false,
   );
   passed.push(
-    "36 source passports: hidden hypotheses, no invented coordinates for PAS-029, traceable sources and thematic collections",
+    "36 source passports: optional approximate points, no invented coordinates for PAS-029, traceable sources and thematic collections",
   );
   assert.deepEqual(errors, []);
   console.log(passed.map((p) => `PASS ${p}`).join("\n"));
