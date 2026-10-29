@@ -32,6 +32,7 @@ import Editor from "./components/Editor";
 import Timeline from "./components/Timeline";
 import BeforeAfter from "./components/BeforeAfter";
 import { PassportCard } from "./components/Passport";
+import { loadArchive, type ArchiveMode } from "./archive";
 const MemoryMap = lazy(() => import("./components/MemoryMap"));
 type Page = "map" | "stories" | "routes" | "about" | "favorites";
 type Route = {
@@ -107,6 +108,7 @@ export default function App() {
   const [places, setPlaces] = useState<Place[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
+  const [archiveMode, setArchiveMode] = useState<ArchiveMode | null>(null);
   const [page, setPage] = useState<Page>("map");
   const [dialog, setDialog] = useState<Dialog>(null);
   const [search, setSearch] = useState("");
@@ -134,7 +136,9 @@ export default function App() {
     setLoading(true);
     setLoadError("");
     try {
-      setPlaces(await api<Place[]>("/api/places"));
+      const archive = await loadArchive();
+      setArchiveMode(archive.mode);
+      setPlaces(archive.places);
     } catch (e) {
       setLoadError((e as Error).message);
     } finally {
@@ -153,7 +157,7 @@ export default function App() {
         if (p) {
           setDialog({ type: "place", place: p });
           setSelected(p.id);
-        } else {
+        } else if (!loading && archiveMode === "server") {
           // A shared link may point to a story published after this tab loaded.
           void api<Place>(`/api/places/${encodeURIComponent(hash.slice(6))}`)
             .then((found) => {
@@ -166,6 +170,8 @@ export default function App() {
               if (window.location.hash.slice(1) === hash)
                 setToast("Эта история не найдена или пока не опубликована.");
             });
+        } else if (!loading && archiveMode === "catalogue") {
+          setToast("Этот паспорт не найден в опубликованном архиве.");
         }
       } else {
         setPage(
@@ -179,7 +185,7 @@ export default function App() {
     onHash();
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
-  }, [places]);
+  }, [places, loading, archiveMode]);
   useEffect(() => {
     if (!toast) return;
     const timer = window.setTimeout(() => setToast(""), 4500);
@@ -410,7 +416,9 @@ export default function App() {
               </div>
               <div className="hero-facts">
                 <div>
-                  <strong>{places.length.toString().padStart(2, "0")}</strong>
+                  <strong>
+                    {loading ? "…" : loadError ? "—" : places.length.toString().padStart(2, "0")}
+                  </strong>
                   <span>мест с историями</span>
                 </div>
                 <i />
@@ -575,7 +583,7 @@ export default function App() {
                 setYearRange(null);
               }}
             />
-            <div className="demo-notice">
+            {!loading && !loadError && <div className="demo-notice">
               <span className="demo-dot" />
               <p>
                 {hasCatalogue ? (
@@ -599,7 +607,7 @@ export default function App() {
               <button onClick={() => setDialog({ type: "submit" })}>
                 Добавить свою <ArrowRight size={14} />
               </button>
-            </div>
+            </div>}
             {loadError ? (
               <div className="empty error" role="alert">
                 <h3>Не удалось загрузить архив</h3>
@@ -942,7 +950,11 @@ export default function App() {
         </div>
         <div className="footer-bottom">
           <span>© {new Date().getFullYear()} Карта памяти Югры</span>
-          <span>Первая версия · открыты для ваших историй</span>
+          <span>
+            {archiveMode === "catalogue"
+              ? "Открытый каталог паспортов"
+              : "Первая версия · открыты для ваших историй"}
+          </span>
           <span>Помнить — значит сохранять.</span>
         </div>
       </footer>
@@ -966,8 +978,24 @@ export default function App() {
           }
           onClose={closeDialog}
         >
-          {dialog.type === "submit" && <SubmissionForm onClose={closeDialog} />}
-          {dialog.type === "editor" && (
+          {(dialog.type === "submit" || dialog.type === "editor") &&
+            archiveMode !== "server" && (
+            <div className="editor-login">
+              <span className="eyebrow">КАРТА ПАМЯТИ ЮГРЫ</span>
+              <h2>{loading ? "Открываем архив…" : "Архив открыт для чтения"}</h2>
+              <p>
+                Паспорта, поиск и избранное доступны. Приём новых материалов и
+                кабинет редактора пока недоступны на этом сайте.
+              </p>
+              <button className="button primary" onClick={closeDialog}>
+                Вернуться к архиву
+              </button>
+            </div>
+          )}
+          {dialog.type === "submit" && archiveMode === "server" && (
+            <SubmissionForm onClose={closeDialog} />
+          )}
+          {dialog.type === "editor" && archiveMode === "server" && (
             <Editor
               onPublished={() => {
                 void load();

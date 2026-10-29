@@ -38,6 +38,8 @@ export default function MemoryMap({
       minZoom: 4,
       maxZoom: 15,
       zoomControl: false,
+      // Leaflet's delayed zoom callback can outlive a map removed by navigation.
+      zoomAnimation: false,
       scrollWheelZoom: false,
     });
     L.imageOverlay(
