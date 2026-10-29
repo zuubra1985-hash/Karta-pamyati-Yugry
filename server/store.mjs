@@ -10,6 +10,7 @@ import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { seedPlaces } from "./seed.mjs";
 import passportPlaces from "./data/passports.json" with { type: "json" };
+import passportReview from "./data/passport-review.json" with { type: "json" };
 
 export const hashToken = (value) =>
   createHash("sha256").update(value).digest("hex");
@@ -115,6 +116,28 @@ export class Store {
           .run();
       });
     this.confirmCatalogueVerification();
+    this.applyCatalogueReview();
+  }
+  applyCatalogueReview() {
+    const key = passportReview.id;
+    if (this.db.prepare("SELECT 1 FROM metadata WHERE key=?").get(key)) return;
+    this.transaction(() => {
+      for (const patch of passportReview.patches) {
+        const current = this.place(patch.id);
+        if (!current || current.catalogue !== "surgut-passports-2026-v1") continue;
+        for (const change of patch.changes) {
+          const [field, nested] = change.path.split(".");
+          if (nested && !current[field]) continue;
+          const previous = nested ? current[field][nested] : current[field];
+          // Update only the exact imported field; preserve independent owner edits.
+          if (hashToken(JSON.stringify(previous ?? null)) !== change.beforeHash) continue;
+          if (nested) current[field][nested] = change.value;
+          else current[field] = change.value;
+        }
+        this.db.prepare("UPDATE places SET data=? WHERE id=?").run(JSON.stringify(current), current.id);
+      }
+      this.db.prepare("INSERT INTO metadata VALUES (?, ?)").run(key, "done");
+    });
   }
   confirmCatalogueVerification() {
     const key = "surgut_passports_owner_verified_20261029";

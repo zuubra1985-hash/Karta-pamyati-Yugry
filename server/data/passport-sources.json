@@ -3,11 +3,19 @@
   "sha256": "22a4293d8b02c49a82dfe7dadc3f7a693bf2dc77efce457adbd0c66151c99aa1",
   "folder": "https://drive.google.com/drive/folders/1-hNPJJAGgjt5ZCww0iakrtA9NXwe1Lls",
   "count": 36,
-  "coordinateHypotheses": 35,
+  "coordinateHypotheses": 32,
   "unlocated": [
+    "pas-004",
+    "pas-020",
+    "pas-025",
     "pas-029"
   ],
   "note": "Исправленный рабочий свод. Копии, прежние пакетные редакции и устаревший GPS-атлас не использованы. Разделы воспоминаний и поимённые списки не публикуются без отдельной проверки.",
+  "onlineReview": {
+    "id": "online-review-20261029-v1",
+    "reviewedOn": "2026-10-29",
+    "scope": "Все 36 паспортов просмотрены и сопоставлены с доступными публикациями. Это не означает независимое подтверждение каждого утверждения."
+  },
   "publicDocumentUrl": "https://docs.google.com/document/d/1kE0OX_BCwmxX1CGJBc2IZ_Lvz5d7c2DNK4qMfhUK-wc/edit",
   "publicAccessVerified": "2026-10-28",
   "ownerVerification": {

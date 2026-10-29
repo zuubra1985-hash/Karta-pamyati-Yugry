@@ -37,8 +37,8 @@ try {
   assert.match(await page.locator(".demo-notice").textContent(), /36 историй/);
   assert.equal(await page.locator(".memory-pin.hypothesis").count(), 0);
   await page.getByRole("button", { name: /^Показать гипотезы/ }).click();
-  assert.equal(await page.locator(".memory-pin.hypothesis").count(), 35);
-  passed.push("Static deployment: 36 verified passports and 35 opt-in coordinate hypotheses without an API");
+  assert.equal(await page.locator(".memory-pin.hypothesis").count(), 32);
+  passed.push("Static deployment: 36 passports and 32 opt-in coordinate hypotheses without an API");
 
   await page.getByRole("textbox", { name: "Поиск по архиву" }).fill("Немчинова");
   assert.equal(await page.locator(".mini-card").count(), 1);
@@ -56,7 +56,7 @@ try {
   await page.goto(`${origin}/#place/pas-029`, { waitUntil: "networkidle" });
   await page.locator(".passport-card").waitFor();
   assert.match(await page.locator(".place-detail h2").textContent(), /Кедровый/);
-  assert.match(await page.locator(".passport-card").textContent(), /Не локализован/);
+  assert.match(await page.locator(".passport-card").textContent(), /Точное местоположение/);
   await page.keyboard.press("Escape");
   await page.locator(".main-nav").getByRole("link", { name: "Истории", exact: true }).click();
   assert.equal(await page.locator(".story-card").count(), 36);

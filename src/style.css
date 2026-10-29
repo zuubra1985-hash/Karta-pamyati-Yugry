@@ -3365,6 +3365,22 @@ textarea {
   color: #859371;
   margin-top: 15px;
 }
+.passport-web-sources {
+  margin-top: 20px;
+}
+.passport-web-sources ul {
+  padding-left: 18px;
+  margin-top: 10px;
+}
+.passport-web-sources li {
+  margin: 12px 0;
+}
+.passport-web-sources small {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  margin-top: 4px;
+}
 .passport-references summary {
   cursor: pointer;
   color: #6c8257;

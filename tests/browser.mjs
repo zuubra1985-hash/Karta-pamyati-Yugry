@@ -330,7 +330,7 @@ try {
   assert.equal(await page.locator(".mini-card").count(), 38);
   assert.equal(await page.locator(".memory-pin.hypothesis").count(), 0);
   await page.getByRole("button", { name: /^Показать гипотезы/ }).click();
-  assert.equal(await page.locator(".memory-pin.hypothesis").count(), 35);
+  assert.equal(await page.locator(".memory-pin.hypothesis").count(), 32);
   await page.getByRole("textbox", { name: "Поиск по архиву" }).fill("Кедровый");
   assert.equal(await page.locator(".mini-card").count(), 1);
   assert.equal(await page.locator(".leaflet-marker-icon").count(), 0);
@@ -338,7 +338,7 @@ try {
   await page.locator(".passport-card").waitFor();
   assert.ok(
     (await page.locator(".passport-card").textContent()).includes(
-      "Не локализован",
+      "Точное местоположение",
     ),
   );
   assert.ok(
@@ -365,7 +365,7 @@ try {
     .getByRole("link", { name: "Маршруты памяти" })
     .click();
   await page.locator(".route-card").first().click();
-  assert.equal(await page.locator(".route-detail li").count(), 4);
+  assert.equal(await page.locator(".route-detail li").count(), 6);
   await page.keyboard.press("Escape");
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(origin + "/#map", { waitUntil: "networkidle" });

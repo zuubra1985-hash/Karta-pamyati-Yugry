@@ -44,8 +44,26 @@ for r in records:
     passport={'documentTitle':source.name,'documentUrl':'https://drive.google.com/drive/folders/1-hNPJJAGgjt5ZCww0iakrtA9NXwe1Lls','archiveReference':f'Паспорт № {n:02d}; раздел III, параметры 1–5 и исторический контекст (раздел 6).','officialName':title,'objectType':t['1'],'period':period,'address':addr,'economy':t['4'],'population':t['5'],'historicalStatus':status,'coordinateNote':('Местоположение не установлено. Прежняя точка не используется.' if n==29 else 'G1 / P0: координатная гипотеза из рабочего паспорта. Полевой проверки GPS нет; не для навигации.'),'references':r['references']}
     items.append({'id':f'pas-{n:03d}','catalogue':'surgut-passports-2026-v1','title':short,'location':'Сургутский район и исторические территории','category':'settlements','year':year,'latitude':lat,'longitude':lon,'coordinateStatus':'unknown' if lat is None else 'hypothesis','summary':context.split('\n\n')[0][:190]+'…','story':'Сведения перенесены из историко-краеведческого паспорта, проверенного владельцем проекта.\n\n'+context,'author':'Материалы проекта «Карта памяти Югры»','source':f'{source.name}, паспорт № {n:02d}. Паспорт проверен владельцем проекта 29 октября 2026 года.','image':['village','river','forest'][(n-1)%3],'demo':False,'verificationStatus':'verified','verification':{'by':'project_owner','confirmedOn':'2026-10-29'},'passport':passport})
 root=Path(__file__).resolve().parents[1]
+# Reapply the documented online editorial revision after extracting the source.
+# Each field is guarded by its original hash, so a changed document is not silently overwritten.
+review_path=root/'server/data/passport-review.json'
+if review_path.exists():
+    review=json.loads(review_path.read_text())
+    by_id={item['id']:item for item in items}
+    for patch in review['patches']:
+        item=by_id.get(patch['id'])
+        if not item:continue
+        for change in patch['changes']:
+            parts=change['path'].split('.')
+            target=item if len(parts)==1 else item.get(parts[0])
+            if target is None:continue
+            field=parts[-1]
+            current=json.dumps(target.get(field),ensure_ascii=False,separators=(',',':'))
+            if hashlib.sha256(current.encode()).hexdigest()==change['beforeHash']:
+                target[field]=change['value']
 (root/'server/data/passports.json').write_text(json.dumps(items,ensure_ascii=False,indent=2)+'\n')
-manifest={'sourceFile':source.name,'sha256':hashlib.sha256(source.read_bytes()).hexdigest(),'folder':'https://drive.google.com/drive/folders/1-hNPJJAGgjt5ZCww0iakrtA9NXwe1Lls','count':len(items),'coordinateHypotheses':sum(x['latitude'] is not None for x in items),'unlocated':['pas-029'],'note':'Исправленный рабочий свод. Копии, прежние пакетные редакции и устаревший GPS-атлас не использованы. Разделы воспоминаний и поимённые списки не публикуются без отдельной проверки.'}
+manifest={'sourceFile':source.name,'sha256':hashlib.sha256(source.read_bytes()).hexdigest(),'folder':'https://drive.google.com/drive/folders/1-hNPJJAGgjt5ZCww0iakrtA9NXwe1Lls','count':len(items),'coordinateHypotheses':sum(x['latitude'] is not None for x in items),'unlocated':[x['id']for x in items if x['latitude'] is None],'note':'Исправленный рабочий свод. Копии, прежние пакетные редакции и устаревший GPS-атлас не использованы. Разделы воспоминаний и поимённые списки не публикуются без отдельной проверки.'}
+if review_path.exists():manifest['onlineReview']={'id':review['id'],'reviewedOn':review['reviewedOn'],'scope':review['scope']}
 manifest['publicDocumentUrl']='https://docs.google.com/document/d/1kE0OX_BCwmxX1CGJBc2IZ_Lvz5d7c2DNK4qMfhUK-wc/edit'
 manifest['publicAccessVerified']='2026-10-28'
 manifest['ownerVerification']={'by':'project_owner','confirmedOn':'2026-10-29'}

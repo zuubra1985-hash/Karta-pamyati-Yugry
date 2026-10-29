@@ -2,7 +2,7 @@ import { useState } from "react";
 import { FileText, ArrowUpRight } from "lucide-react";
 import type { ObjectPassport } from "../types";
 const fields: {
-  key: Exclude<keyof ObjectPassport, "references">;
+  key: Exclude<keyof ObjectPassport, "references" | "webSources">;
   label: string;
   max: number;
 }[] = [
@@ -138,7 +138,7 @@ export function PassportCard({
         {passport.references?.length ? (
           <details className="passport-references">
             <summary>
-              Источники, указанные в паспорте
+              Литература и публикации
             </summary>
             <ul>
               {passport.references.map((reference, i) => (
@@ -146,6 +146,27 @@ export function PassportCard({
               ))}
             </ul>
           </details>
+        ) : null}
+        {passport.webSources?.length ? (
+          <div className="passport-web-sources">
+            <strong>Опубликованные источники</strong>
+            <ul>
+              {passport.webSources.map((source, i) => {
+                let href: string | null = null;
+                try {
+                  const parsed = new URL(source.url);
+                  if (parsed.protocol === "https:" && !parsed.username && !parsed.password)
+                    href = parsed.href;
+                } catch { /* An invalid source stays plain text. */ }
+                return (
+                  <li key={i}>
+                    {href ? <a href={href} target="_blank" rel="noopener noreferrer">{source.title} <ArrowUpRight size={14} /></a> : source.title}
+                    {source.publisher && <small>{source.publisher}</small>}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
         ) : null}
         {url && (
           <a href={url} target="_blank" rel="noopener noreferrer">

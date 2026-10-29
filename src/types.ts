@@ -20,6 +20,7 @@ export interface ObjectPassport {
   historicalStatus?: string;
   coordinateNote?: string;
   references?: string[];
+  webSources?: { title: string; url: string; publisher?: string }[];
 }
 export interface Place {
   id: string;
@@ -27,6 +28,7 @@ export interface Place {
   location: string;
   category: Category;
   year: number | null;
+  dateLabel?: string;
   latitude: number | null;
   longitude: number | null;
   summary: string;
@@ -60,8 +62,10 @@ export interface Submission
   reason?: string;
   revision: number;
 }
-export const dateFor = (p: Pick<Place, "year">) =>
-  p.year === null ? "Дата уточняется" : `${p.year} г.`;
+export const dateFor = (p: Pick<Place, "year" | "dateLabel">) =>
+  p.year === null
+    ? "Без точной датировки"
+    : `${p.dateLabel ? `${p.dateLabel} · ` : ""}${p.year} г.`;
 export interface EditRecord {
   revision: number;
   editor: string;
