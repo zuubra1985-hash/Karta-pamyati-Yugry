@@ -43,7 +43,8 @@ export interface Place {
   passport?: ObjectPassport | null;
   catalogue?: string;
   coordinateStatus?: "hypothesis" | "unknown";
-  verificationStatus?: "working";
+  verificationStatus?: "working" | "verified";
+  verification?: { by: "project_owner"; confirmedOn: string };
 }
 export interface Submission
   extends Omit<

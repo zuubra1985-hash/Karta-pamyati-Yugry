@@ -138,7 +138,7 @@ export function PassportCard({
         {passport.references?.length ? (
           <details className="passport-references">
             <summary>
-              Указанные составителем источники · требуют проверки
+              Источники, указанные в паспорте
             </summary>
             <ul>
               {passport.references.map((reference, i) => (

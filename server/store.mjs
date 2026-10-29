@@ -99,21 +99,57 @@ export class Store {
   }
   importCatalogue() {
     if (
-      this.db
+      !this.db
         .prepare("SELECT 1 FROM metadata WHERE key='surgut_passports_2026_v1'")
         .get()
     )
-      return;
-    this.transaction(() => {
-      for (const place of passportPlaces)
+      this.transaction(() => {
+        for (const place of passportPlaces)
+          this.db
+            .prepare("INSERT OR IGNORE INTO places VALUES (?, ?)")
+            .run(place.id, JSON.stringify(place));
         this.db
-          .prepare("INSERT OR IGNORE INTO places VALUES (?, ?)")
-          .run(place.id, JSON.stringify(place));
-      this.db
-        .prepare(
-          "INSERT INTO metadata VALUES ('surgut_passports_2026_v1', 'done')",
+          .prepare(
+            "INSERT INTO metadata VALUES ('surgut_passports_2026_v1', 'done')",
+          )
+          .run();
+      });
+    this.confirmCatalogueVerification();
+  }
+  confirmCatalogueVerification() {
+    const key = "surgut_passports_owner_verified_20261029";
+    if (this.db.prepare("SELECT 1 FROM metadata WHERE key=?").get(key)) return;
+    this.transaction(() => {
+      const oldIntro =
+        "Сведения ниже перенесены из рабочего историко-краеведческого паспорта проекта. Они требуют проверки по первоисточникам.";
+      for (const original of passportPlaces) {
+        const current = this.place(original.id);
+        if (
+          !current ||
+          current.catalogue !== original.catalogue ||
+          current.verificationStatus !== "working"
         )
-        .run();
+          continue;
+        const updated = {
+          ...current,
+          verificationStatus: "verified",
+          verification: original.verification,
+          story: current.story?.startsWith(oldIntro)
+            ? current.story.replace(
+                oldIntro,
+                "Сведения перенесены из историко-краеведческого паспорта, проверенного владельцем проекта.",
+              )
+            : current.story,
+          source: current.source?.replace(
+            "Рабочие сведения составителя, не независимая научная верификация.",
+            "Паспорт проверен владельцем проекта 29 октября 2026 года.",
+          ),
+        };
+        this.db
+          .prepare("UPDATE places SET data=? WHERE id=?")
+          .run(JSON.stringify(updated), current.id);
+      }
+      this.db.prepare("INSERT INTO metadata VALUES (?, ?)").run(key, "done");
     });
   }
   transaction(fn) {

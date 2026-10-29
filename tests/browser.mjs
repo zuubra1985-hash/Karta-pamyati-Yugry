@@ -347,7 +347,17 @@ try {
     ),
   );
   assert.ok(
-    (await page.locator(".source-warning").textContent()).includes("PAS-029"),
+    (await page.locator(".source-verified").textContent()).includes("PAS-029"),
+  );
+  assert.ok(
+    (await page.locator(".source-verified").textContent()).includes(
+      "Проверено владельцем проекта",
+    ),
+  );
+  assert.ok(
+    !(await page.locator(".place-detail").textContent()).includes(
+      "требуют проверки по первоисточникам",
+    ),
   );
   await page
     .getByRole("link", { name: "Открыть папку источника", exact: true })

@@ -3396,3 +3396,27 @@ textarea {
     font-size: 10px;
   }
 }
+
+.source-verified {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 17px 18px;
+  border: 1px solid #bccdab;
+  background: #edf3e5;
+  border-radius: 5px;
+  margin: 22px 0;
+  color: #567642;
+}
+.source-verified > svg {
+  flex-shrink: 0;
+}
+.source-verified strong {
+  font-size: 12px;
+}
+.source-verified p {
+  font-size: 11px;
+  line-height: 1.7;
+  color: #7e936c;
+  margin-top: 5px;
+}
