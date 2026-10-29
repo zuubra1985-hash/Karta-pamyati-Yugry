@@ -34,7 +34,7 @@ try {
   await page.goto(origin, { waitUntil: "networkidle" });
   assert.equal(await page.locator(".mini-card").count(), 36);
   assert.match(await page.locator(".hero-facts").textContent(), /36/);
-  assert.match(await page.locator(".demo-notice").textContent(), /36 проверенных/);
+  assert.match(await page.locator(".demo-notice").textContent(), /36 историй/);
   assert.equal(await page.locator(".memory-pin.hypothesis").count(), 0);
   await page.getByRole("button", { name: /^Показать гипотезы/ }).click();
   assert.equal(await page.locator(".memory-pin.hypothesis").count(), 35);
@@ -44,7 +44,7 @@ try {
   assert.equal(await page.locator(".mini-card").count(), 1);
   await page.locator(".mini-card-main").click();
   await page.locator(".passport-card").waitFor();
-  assert.match(await page.locator(".source-verified").textContent(), /PAS-005/);
+  assert.doesNotMatch(await page.locator(".place-detail").textContent(), /PAS-\d+|Проверено владельцем проекта|Сведения перенесены|рабочая версия|G1\s*\/\s*P0/);
   assert.ok(await page.locator('.passport-card a[href^="https://drive.google.com/"]').count());
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: /В избранное:.*Немчинова/ }).click();
@@ -55,7 +55,7 @@ try {
 
   await page.goto(`${origin}/#place/pas-029`, { waitUntil: "networkidle" });
   await page.locator(".passport-card").waitFor();
-  assert.match(await page.locator(".source-verified").textContent(), /PAS-029/);
+  assert.match(await page.locator(".place-detail h2").textContent(), /Кедровый/);
   assert.match(await page.locator(".passport-card").textContent(), /Не локализован/);
   await page.keyboard.press("Escape");
   await page.locator(".main-nav").getByRole("link", { name: "Истории", exact: true }).click();

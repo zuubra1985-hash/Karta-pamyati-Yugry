@@ -346,13 +346,9 @@ try {
       "Местоположение не установлено",
     ),
   );
-  assert.ok(
-    (await page.locator(".source-verified").textContent()).includes("PAS-029"),
-  );
-  assert.ok(
-    (await page.locator(".source-verified").textContent()).includes(
-      "Проверено владельцем проекта",
-    ),
+  assert.doesNotMatch(
+    await page.locator(".place-detail").textContent(),
+    /PAS-\d+|Проверено владельцем проекта|Сведения перенесены|рабочая версия|G1\s*\/\s*P0/,
   );
   assert.ok(
     !(await page.locator(".place-detail").textContent()).includes(

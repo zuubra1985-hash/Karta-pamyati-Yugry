@@ -33,6 +33,7 @@ import Timeline from "./components/Timeline";
 import BeforeAfter from "./components/BeforeAfter";
 import { PassportCard } from "./components/Passport";
 import { loadArchive, type ArchiveMode } from "./archive";
+import { publicPlaceContent } from "./content";
 const MemoryMap = lazy(() => import("./components/MemoryMap"));
 type Page = "map" | "stories" | "routes" | "about" | "favorites";
 type Route = {
@@ -589,11 +590,10 @@ export default function App() {
                 {hasCatalogue ? (
                   <>
                     <strong>
-                      {places.filter((p) => p.catalogue).length} проверенных
-                      паспортов из вашего архива.
+                      {places.filter((p) => p.catalogue).length} историй
+                      поселений Сургутского района.
                     </strong>{" "}
-                    Паспорта проверены владельцем проекта. Координаты G1/P0 не
-                    подтверждены; гипотезы включаются на карте отдельно.
+                    Приблизительные местоположения включаются на карте отдельно.
                     Изображения — иллюстрации.
                   </>
                 ) : (
@@ -1102,11 +1102,9 @@ function StoryCard({
         <span className="image-badge">
           {p.demo
             ? "ДЕМОНСТРАЦИЯ"
-            : p.verificationStatus === "verified"
-              ? "ПРОВЕРЕННЫЙ ПАСПОРТ"
-              : p.verificationStatus === "working"
-                ? "ПАСПОРТ ОБЪЕКТА"
-                : "ИСТОРИЯ ЖИТЕЛЯ"}
+            : p.catalogue
+              ? "ИСТОРИЯ ПОСЕЛЕНИЯ"
+              : "ИСТОРИЯ ЖИТЕЛЯ"}
         </span>
         <button
           className={`image-heart ${saved ? "is-saved" : ""}`}
@@ -1139,7 +1137,7 @@ function StoryCard({
   );
 }
 function PlaceDetail({
-  place: p,
+  place,
   saved,
   onFavorite,
   onShare,
@@ -1151,6 +1149,7 @@ function PlaceDetail({
   onShare: () => void;
   onContribute: () => void;
 }) {
+  const p = publicPlaceContent(place);
   const [shareFallback, setShareFallback] = useState("");
   async function share() {
     const url = `${window.location.origin}/#place/${p.id}`;
@@ -1184,23 +1183,8 @@ function PlaceDetail({
             <MapPin size={15} />
             {p.location}
           </span>
-          <span>{dateFor(p)} · по материалам источника</span>
+          <span>{dateFor(p)}</span>
         </div>
-        {p.verificationStatus === "verified" && (
-          <div className="source-verified">
-            <Check size={20} />
-            <div>
-              <strong>Проверенный паспорт · PAS-{p.id.slice(4)}</strong>
-              <p>
-                Проверено владельцем проекта
-                {p.verification?.confirmedOn
-                  ? ` · ${new Date(`${p.verification.confirmedOn}T00:00:00`).toLocaleDateString("ru-RU")}`
-                  : ""}
-                .
-              </p>
-            </div>
-          </div>
-        )}
         {p.demo && (
           <div className="demo-notice">
             <Sparkles size={18} />
