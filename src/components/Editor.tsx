@@ -12,7 +12,7 @@ import { api, categoryLabel, type Submission, type EditRecord } from "../types";
 import EditSubmission from "./EditSubmission";
 import BeforeAfter from "./BeforeAfter";
 import { PassportCard } from "./Passport";
-export default function Editor({ onPublished }: { onPublished: () => void }) {
+export default function Editor({ onPublished, onAuthChange }: { onPublished: () => void; onAuthChange: (authenticated: boolean) => void }) {
   const [email, setEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<Submission[]>([]);
@@ -37,6 +37,7 @@ export default function Editor({ onPublished }: { onPublished: () => void }) {
     api<{ email: string }>("/api/admin/session")
       .then((data) => {
         setEmail(data.email);
+      onAuthChange(true);
         void load();
       })
       .catch(() => {})
@@ -52,6 +53,7 @@ export default function Editor({ onPublished }: { onPublished: () => void }) {
         body: JSON.stringify(Object.fromEntries(new FormData(e.currentTarget))),
       });
       setEmail(data.email);
+      onAuthChange(true);
       await load();
     } catch (e) {
       setError((e as Error).message);
@@ -87,7 +89,7 @@ export default function Editor({ onPublished }: { onPublished: () => void }) {
         <span className="eyebrow">БЕРЕЖНО СОХРАНЯЕМ ИСТОРИИ</span>
         <h2>Кабинет редактора</h2>
         <p>
-          Проверка материалов, источников и согласий перед публикацией на карте.
+          Войдите, затем откройте нужную карточку в архиве и нажмите «Изменить». Здесь также доступна проверка новых материалов.
         </p>
         <form onSubmit={login}>
           <label>
@@ -127,7 +129,8 @@ export default function Editor({ onPublished }: { onPublished: () => void }) {
       <div className="section-top">
         <div>
           <span className="eyebrow">РЕДАКЦИЯ</span>
-          <h2>Истории на проверке</h2>
+          <h2>Кабинет администратора</h2>
+          <p>Для изменения опубликованного паспорта закройте кабинет, откройте карточку и нажмите «Изменить».</p>
           <p className="muted small">{email}</p>
         </div>
         <button
@@ -136,6 +139,7 @@ export default function Editor({ onPublished }: { onPublished: () => void }) {
             try {
               await api("/api/admin/logout", { method: "POST", body: "{}" });
               setEmail(null);
+              onAuthChange(false);
               setItems([]);
             } catch (e) {
               setError((e as Error).message);

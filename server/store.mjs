@@ -37,6 +37,7 @@ export class Store {
       CREATE TABLE IF NOT EXISTS media (id TEXT PRIMARY KEY, type TEXT NOT NULL, bytes BLOB NOT NULL);
       CREATE TABLE IF NOT EXISTS admins (email TEXT PRIMARY KEY, password TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, email TEXT NOT NULL REFERENCES admins(email), expires INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS place_edits (id TEXT PRIMARY KEY, place_id TEXT NOT NULL, revision INTEGER NOT NULL, editor TEXT NOT NULL, created_at TEXT NOT NULL, before_data TEXT NOT NULL, after_data TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);`);
     // Additive migration: existing submissions and their original content are retained.
     if (
@@ -198,6 +199,21 @@ export class Store {
   place(id) {
     const row = this.db.prepare("SELECT data FROM places WHERE id=?").get(id);
     return row ? JSON.parse(row.data) : null;
+  }
+  updatePlace(id, updates, revision, editor, photo) {
+    return this.transaction(() => {
+      const current = this.place(id);
+      if (!current || (current.revision || 0) !== revision) return null;
+      const after = { ...current, ...updates, revision: revision + 1 };
+      if (photo === null) delete after.mediaId;
+      else if (photo) {
+        after.mediaId = randomUUID();
+        this.db.prepare("INSERT INTO media VALUES (?, ?, ?)").run(after.mediaId, photo.type, photo.bytes);
+      }
+      this.db.prepare("INSERT INTO place_edits VALUES (?, ?, ?, ?, ?, ?, ?)").run(randomUUID(), id, after.revision, editor, new Date().toISOString(), JSON.stringify(current), JSON.stringify(after));
+      this.db.prepare("UPDATE places SET data=? WHERE id=?").run(JSON.stringify(after), id);
+      return after;
+    });
   }
   submit(input, photo, afterPhoto) {
     return this.transaction(() => {

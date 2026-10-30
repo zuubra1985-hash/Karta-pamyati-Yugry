@@ -53,7 +53,7 @@ export const storyFields = {
   afterSource: z.string().trim().min(3).max(1000).optional(),
   passport: passportSchema.nullable().optional(),
 };
-const photoSchema = z.object({
+export const photoSchema = z.object({
   data: z.string().max(2800000),
   type: z.enum(["image/jpeg", "image/png", "image/webp"]),
 });
@@ -95,3 +95,27 @@ export const submissionSchema = z
 export const editorialSchema = z
   .object({ ...storyFields, revision: z.number().int().min(0) })
   .strict();
+
+export const placeEditSchema = z.object({
+  ...storyFields,
+  year: storyFields.year.nullable(),
+  latitude: storyFields.latitude.nullable(),
+  longitude: storyFields.longitude.nullable(),
+  summary: z.string().trim().min(3).max(1000),
+  dateLabel: z.string().trim().max(150),
+  coordinateStatus: z.enum(["hypothesis", "unknown", "confirmed"]),
+  passport: passportSchema.extend({
+    economy: z.string().max(5000).optional(), population: z.string().max(5000).optional(),
+    historicalStatus: optionalText, coordinateNote: optionalText,
+    references: z.array(z.string().max(2000)).max(100).optional(),
+    webSources: z.array(z.object({title: z.string().max(500), url: passportSchema.shape.documentUrl.unwrap(), publisher: z.string().max(500).optional()}).strict()).max(100).optional(),
+  }).nullable(),
+  appearance: z.object({accent: z.enum(["forest", "river", "clay"]), imagePosition: z.enum(["center", "top", "bottom"])}).strict(),
+  photo: photoSchema.nullable().optional(),
+  revision: z.number().int().min(0),
+}).strict().superRefine((v, ctx) => {
+  if ((v.latitude === null) !== (v.longitude === null) || (v.coordinateStatus === "unknown") !== (v.latitude === null))
+    ctx.addIssue({code: "custom", message: "Укажите обе координаты и их достоверность либо выберите неизвестное местоположение."});
+  if (v.afterYear !== undefined && v.year !== null && v.afterYear < v.year)
+    ctx.addIssue({code: "custom", message: "Второй снимок не может быть раньше первого."});
+});

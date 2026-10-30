@@ -16,6 +16,8 @@ import {
   Sparkles,
   Users,
   X,
+  ShieldCheck,
+  Pencil,
 } from "lucide-react";
 import {
   api,
@@ -28,6 +30,7 @@ import {
 } from "./types";
 import Modal from "./components/Modal";
 import SubmissionForm from "./components/SubmissionForm";
+import EditPlace from "./components/EditPlace";
 import Editor from "./components/Editor";
 import Timeline from "./components/Timeline";
 import BeforeAfter from "./components/BeforeAfter";
@@ -109,6 +112,8 @@ function Mark({ small = false }: { small?: boolean }) {
   );
 }
 export default function App() {
+  const [admin, setAdmin] = useState(false);
+  useEffect(() => { api("/api/admin/session").then(() => setAdmin(true)).catch(() => {}); }, []);
   const [places, setPlaces] = useState<Place[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -376,6 +381,7 @@ export default function App() {
             ))}
           </nav>
           <div className="header-actions">
+            <button className="button secondary admin-entry" onClick={() => setDialog({type: "editor"})}><ShieldCheck size={17}/><span>{admin ? "Администратор" : "Вход администратора"}</span></button>
             <button
               className={`icon-button favorites-toggle ${page === "favorites" ? "is-saved" : ""}`}
               onClick={() => navigate("favorites")}
@@ -389,7 +395,7 @@ export default function App() {
               onClick={() => setDialog({ type: "submit" })}
             >
               <Plus size={17} />
-              Добавить историю
+              <span>Добавить историю</span>
             </button>
             <button
               className="icon-button mobile-menu"
@@ -658,6 +664,7 @@ export default function App() {
                             onClick={() => openPlace(p)}
                           >
                             <img
+                              style={{objectPosition: p.appearance?.imagePosition || "center"}}
                               src={imageFor(p)}
                               alt={
                                 p.mediaId ? p.title : "Иллюстрация к истории"
@@ -1032,6 +1039,7 @@ export default function App() {
           )}
           {dialog.type === "editor" && archiveMode === "server" && (
             <Editor
+              onAuthChange={setAdmin}
               onPublished={() => {
                 void load();
               }}
@@ -1039,6 +1047,9 @@ export default function App() {
           )}
           {dialog.type === "place" && (
             <PlaceDetail
+              key={dialog.place.id}
+              canEdit={admin && archiveMode === "server"}
+              onSaved={(saved) => { setPlaces(items => items.map(p => p.id === saved.id ? saved : p)); setDialog({type: "place", place: saved}); setToast("Изменения сохранены."); }}
               place={dialog.place}
               saved={favorites.includes(dialog.place.id)}
               onFavorite={() => toggleFavorite(dialog.place.id)}
@@ -1126,11 +1137,12 @@ function StoryCard({
   onOpen: () => void;
 }) {
   return (
-    <article className="story-card">
+    <article className="story-card" data-accent={p.appearance?.accent}>
       <div className="story-image">
         <button onClick={onOpen} aria-label={`Открыть историю: ${p.title}`}>
           <img
-            src={imageFor(p)}
+            style={{objectPosition: p.appearance?.imagePosition || "center"}}
+          src={imageFor(p)}
             alt={p.mediaId ? p.title : "Авторская иллюстрация"}
             loading="lazy"
           />
@@ -1174,6 +1186,7 @@ function StoryCard({
   );
 }
 function PlaceDetail({
+  canEdit, onSaved,
   place,
   saved,
   onFavorite,
@@ -1181,6 +1194,8 @@ function PlaceDetail({
   onContribute,
   onMap,
 }: {
+  canEdit: boolean;
+  onSaved: (p: Place) => void;
   place: Place;
   saved: boolean;
   onFavorite: () => void;
@@ -1188,6 +1203,7 @@ function PlaceDetail({
   onContribute: () => void;
   onMap: () => void;
 }) {
+  const [editing, setEditing] = useState(false);
   const p = publicPlaceContent(place);
   const [shareFallback, setShareFallback] = useState("");
   async function share() {
@@ -1199,10 +1215,13 @@ function PlaceDetail({
       setShareFallback(url);
     }
   }
+  if (editing && canEdit) return <EditPlace place={place} onSaved={p => {onSaved(p); setEditing(false);}} onCancel={() => setEditing(false)}/>;
   return (
-    <article className="place-detail">
+    <article className="place-detail" data-accent={p.appearance?.accent}>
+      {canEdit && <div className="admin-place-toolbar"><span>Режим администратора</span><button className="button secondary" onClick={() => setEditing(true)}><Pencil size={16}/>Изменить</button></div>}
       <div className="detail-image">
         <img
+          style={{objectPosition: p.appearance?.imagePosition || "center"}}
           src={imageFor(p)}
           alt={
             p.mediaId

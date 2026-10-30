@@ -2,7 +2,7 @@ import express from "express";
 import helmet from "helmet";
 import { rateLimit } from "express-rate-limit";
 import { z } from "zod";
-import { submissionSchema, editorialSchema } from "./schemas.mjs";
+import { submissionSchema, editorialSchema, placeEditSchema } from "./schemas.mjs";
 import { withMemories } from "./memories.mjs";
 
 function decodePhoto(photo) {
@@ -166,6 +166,18 @@ export function createApp(store, { production = false, origin } = {}) {
         path: "/",
       })
       .json({ ok: true });
+  });
+  app.patch("/api/admin/places/:id", requireAdmin, (req, res) => {
+    const parsed = placeEditSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({error: parsed.error.issues.find(i => i.code === "custom")?.message || "Проверьте поля карточки, паспорта, фото и GPS."});
+    const {revision, photo, ...updates} = parsed.data;
+    if (!store.place(req.params.id)) return res.status(404).json({error: "Место не найдено."});
+    let image;
+    try { image = photo === undefined ? undefined : decodePhoto(photo); }
+    catch (e) { return res.status(400).json({error: e.message}); }
+    const saved = store.updatePlace(req.params.id, updates, revision, req.admin.email, image);
+    if (!saved) return res.status(409).json({error: "Карточка изменена другим администратором. Откройте её заново перед сохранением."});
+    res.json(withMemories(saved));
   });
   app.get("/api/admin/submissions", requireAdmin, (_, res) =>
     res.json(store.submissions()),

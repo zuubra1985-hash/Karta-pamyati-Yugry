@@ -24,6 +24,8 @@ export interface ObjectPassport {
 }
 export interface Place {
   id: string;
+  revision?: number;
+  appearance?: { accent: "forest" | "river" | "clay"; imagePosition: "center" | "top" | "bottom" };
   title: string;
   location: string;
   category: Category;
@@ -44,7 +46,7 @@ export interface Place {
   afterSource?: string;
   passport?: ObjectPassport | null;
   catalogue?: string;
-  coordinateStatus?: "hypothesis" | "unknown";
+  coordinateStatus?: "hypothesis" | "unknown" | "confirmed";
   verificationStatus?: "working" | "verified";
   verification?: { by: "project_owner"; confirmedOn: string };
   memories?: ResidentMemory[];
