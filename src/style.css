@@ -3586,3 +3586,5 @@ textarea {
 .materials-terms { margin-top:28px; border-top:1px solid var(--border); padding-top:20px; }
 .materials-terms summary { cursor:pointer; font-weight:600; }
 .materials-terms p { margin-top:16px; }
+
+.coordinate-pair-input { display:block; width:100%; margin-top:8px; }

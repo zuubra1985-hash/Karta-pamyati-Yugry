@@ -123,14 +123,23 @@ try {
     .fill("Воспоминание из браузерной проверки");
   await dialog.getByLabel("Город или посёлок").fill("Сургут");
   await dialog.getByLabel("Примерный год").fill("1975");
-  await dialog.getByLabel("Координаты из паспорта").fill("61°14′24″ с. ш., 73°24′00″ в. д.");
-  await dialog.getByRole("button", { name: "Применить координаты", exact: true }).click();
-  assert.equal(await dialog.getByLabel("Широта", { exact: true }).inputValue(), "61.24");
-  assert.equal(await dialog.getByLabel("Долгота", { exact: true }).inputValue(), "73.4");
+  const coordinates = dialog.getByLabel("Координаты объекта", {exact:true});
+  assert.equal(await dialog.locator('.coordinates-fields input:not([type="hidden"])').count(),1);
+  await coordinates.fill("61°14′24″ с. ш., 73°24′00″ в. д.");
+  assert.equal(await dialog.locator('input[name="latitude"]').inputValue(), "61.24");
+  assert.equal(await dialog.locator('input[name="longitude"]').inputValue(), "73.4");
+  await coordinates.fill("73.4, 61.24");
+  await coordinates.blur();
+  assert.equal(await coordinates.evaluate(el=>el.validity.valid),false);
+  assert.equal(await dialog.locator('input[name="latitude"]').inputValue(), "");
+  assert.equal(await dialog.getByTitle("Предпросмотр координат на Яндекс Картах").count(),0);
+  await coordinates.fill("61,24; 73,4");
+  assert.equal(await coordinates.evaluate(el=>el.validity.valid),true);
+  assert.equal(await dialog.locator('.coordinates-fields [role="alert"]').count(),0);
   const preview = dialog.getByTitle("Предпросмотр координат на Яндекс Картах");
   await preview.waitFor();
   assert.equal(new URL(await preview.getAttribute("src")).searchParams.get("ll"), "73.4,61.24");
-  passed.push("Passport coordinates: pasted DMS values normalize to decimal degrees and preview without reversed axes");
+  passed.push("One coordinate field: DMS/decimal parsing, invalid input clears stale values and preview, corrected input restores validity");
   await dialog
     .getByLabel("Ваша история")
     .fill(

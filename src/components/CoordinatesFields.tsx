@@ -1,52 +1,48 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { MapPin, ArrowUpRight } from "lucide-react";
-import { parseCoordinate, parseCoordinates, yandexMapUrl } from "../maps";
+import { parseCoordinates, yandexMapUrl } from "../maps";
 
+const invalidMessage = "Укажите пару координат: сначала широту от 58 до 67, затем долготу от 58 до 86. Например: 61.24, 73.4.";
 export default function CoordinatesFields({ initial, editorial = false }: {
   initial?: { latitude: number; longitude: number };
   editorial?: boolean;
 }) {
-  const [latitude, setLatitude] = useState(initial ? String(initial.latitude) : "");
-  const [longitude, setLongitude] = useState(initial ? String(initial.longitude) : "");
-  const [pair, setPair] = useState("");
-  const [pairError, setPairError] = useState("");
-  const latRef = useRef<HTMLInputElement>(null), lonRef = useRef<HTMLInputElement>(null);
-  const lat = parseCoordinate(latitude, "latitude"), lon = parseCoordinate(longitude, "longitude");
+  const [value, setValue] = useState(initial ? `${initial.latitude}, ${initial.longitude}` : "");
+  const [touched, setTouched] = useState(false);
+  const input = useRef<HTMLInputElement>(null);
+  const id = useId();
+  const parsed = parseCoordinates(value);
+  const latitude = parsed?.latitude, longitude = parsed?.longitude;
+  const invalid = Boolean(value.trim()) && !parsed;
   const [preview, setPreview] = useState<{ latitude: number; longitude: number } | null>(null);
   useEffect(() => {
-    latRef.current?.setCustomValidity(latitude && lat === null ? "Широта должна быть от 58 до 67. Допустимы десятичная запись и градусы, минуты, секунды." : "");
-    lonRef.current?.setCustomValidity(longitude && lon === null ? "Долгота должна быть от 58 до 86. Проверьте порядок координат." : "");
-    if (lat === null || lon === null) { setPreview(null); return; }
-    const timer = setTimeout(() => setPreview({ latitude: lat, longitude: lon }), 350);
+    input.current?.setCustomValidity(invalid ? invalidMessage : "");
+  }, [invalid]);
+  useEffect(() => {
+    if (latitude === undefined || longitude === undefined) { setPreview(null); return; }
+    const timer = setTimeout(() => setPreview({ latitude, longitude }), 350);
     return () => clearTimeout(timer);
-  }, [latitude, longitude, lat, lon]);
-  const point = preview ? [{ ...preview, id: "preview", title: "Выбранное место" }] : [];
-  const view = preview ? { ...preview, zoom: 13 } : null;
-  return (
-    <fieldset className="coordinates-fields full">
-      <legend><MapPin size={17} /> Координаты объекта</legend>
-      <p>Вставьте координаты из паспорта или заполните поля. Сначала широта, затем долгота.</p>
-      <div className="coordinate-paste">
-        <label>Координаты из паспорта
-          <input value={pair} onChange={(e) => setPair(e.target.value)} placeholder="61.2408, 73.4072 или 61°14′27″ с. ш., 73°24′26″ в. д." />
-        </label>
-        <button type="button" className="button secondary" onClick={() => {
-          const parsed = parseCoordinates(pair);
-          if (!parsed) { setPairError("Не удалось прочитать координаты. Пример: 61.2408, 73.4072. Широта должна идти первой."); return; }
-          setLatitude(String(parsed.latitude)); setLongitude(String(parsed.longitude)); setPairError("");
-        }}>Применить координаты</button>
-      </div>
-      {pairError && <p className="error" role="alert">{pairError}</p>}
-      <div className="coordinate-inputs">
-        <label>{editorial ? "Широта материала" : "Широта"}<input ref={latRef} name="latitude" value={latitude} onChange={(e) => setLatitude(e.target.value)} inputMode="decimal" required placeholder="61.2408" /></label>
-        <label>{editorial ? "Долгота материала" : "Долгота"}<input ref={lonRef} name="longitude" value={longitude} onChange={(e) => setLongitude(e.target.value)} inputMode="decimal" required placeholder="73.4072" /></label>
-      </div>
-      {view && preview && (
-        <div className="coordinate-preview">
-          <iframe title="Предпросмотр координат на Яндекс Картах" src={yandexMapUrl(point, view)} loading="lazy" allowFullScreen />
-          <a href={yandexMapUrl(point, view, false)} target="_blank" rel="noopener noreferrer">Проверить точку в Яндекс Картах <ArrowUpRight size={14} /></a>
-        </div>
-      )}
-    </fieldset>
-  );
+  }, [latitude, longitude]);
+  const view = preview && preview.latitude === latitude && preview.longitude === longitude ? {...preview, zoom:13} : null;
+  return <fieldset className="coordinates-fields full">
+    <legend><MapPin size={17}/>Местоположение</legend>
+    <label htmlFor={id}>{editorial ? "Координаты материала" : "Координаты объекта"}</label>
+    <input id={id} ref={input} className="coordinate-pair-input" value={value} required
+      aria-describedby={`${id}-help${touched && invalid ? ` ${id}-error` : ""}`}
+      aria-invalid={touched && invalid ? true : undefined}
+      placeholder="61.2408, 73.4072"
+      onBlur={() => setTouched(true)}
+      onChange={e => {
+        setValue(e.target.value);
+        e.target.setCustomValidity(e.target.value.trim() && !parseCoordinates(e.target.value) ? invalidMessage : "");
+      }}/>
+    <p id={`${id}-help`}>Введите или вставьте одну пару: широта, долгота. Можно скопировать координаты с карты или из паспорта, в том числе в градусах, минутах и секундах.</p>
+    <input type="hidden" name="latitude" value={latitude ?? ""}/>
+    <input type="hidden" name="longitude" value={longitude ?? ""}/>
+    {touched && invalid && <p className="error" id={`${id}-error`} role="alert">{invalidMessage}</p>}
+    {view && <div className="coordinate-preview">
+      <iframe title="Предпросмотр координат на Яндекс Картах" src={yandexMapUrl([{...view,id:"preview",title:"Выбранное место"}],view)} loading="lazy" allowFullScreen/>
+      <a href={yandexMapUrl([{...view,id:"preview",title:"Выбранное место"}],view,false)} target="_blank" rel="noopener noreferrer">Проверить точку в Яндекс Картах <ArrowUpRight size={14}/></a>
+    </div>}
+  </fieldset>;
 }

@@ -57,8 +57,7 @@ try {
   await page.getByLabel('Хозяйство', {exact:true}).fill('Исправленное хозяйство');
   await page.getByLabel('Цвет карточки').selectOption('river');
   await page.getByLabel('Положение изображения').selectOption('top');
-  await page.getByLabel('Координаты из паспорта').fill('61.24, 73.4');
-  await page.getByRole('button', {name:'Применить координаты'}).click();
+  await page.getByLabel('Координаты объекта', {exact:true}).fill('61.24, 73.4');
   await page.getByLabel('Достоверность координат').selectOption('confirmed');
   await page.getByLabel('Заменить фотографию', {exact:true}).setInputFiles({name:'test.png', mimeType:'image/png', buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jGuUAAAAASUVORK5CYII=', 'base64')});
   await page.getByRole('button', {name:'Сохранить',exact:true}).click();
