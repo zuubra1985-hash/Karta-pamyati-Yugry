@@ -976,31 +976,6 @@ export default function App() {
         )}
       </main>
       <footer className="site-footer container">
-        <div className="footer-top">
-          <a
-            className="brand"
-            href="#map"
-            onClick={(e) => {
-              e.preventDefault();
-              navigate("map");
-            }}
-          >
-            <Mark />
-            <span>
-              КАРТА ПАМЯТИ
-              <strong>
-                ЮГРЫ<span className="brand-dot">.</span>
-              </strong>
-            </span>
-          </a>
-          <div>
-            <button onClick={() => navigate("about")}>О проекте</button>
-            <button onClick={() => setDialog({ type: "editor" })}>
-              Редакция <ArrowUpRight size={13} />
-            </button>
-          </div>
-          <a className="footer-contact" href={`mailto:${organization.email}`}>{organization.email}</a>
-        </div>
         <div className="footer-bottom">
           <span>© {new Date().getFullYear()} {organization.shortName}. Все права защищены.</span>
         </div>

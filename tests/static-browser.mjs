@@ -136,7 +136,7 @@ try {
   await page.getByRole("heading", { name: "Архив открыт для чтения" }).waitFor();
   assert.equal(await page.locator("dialog form").count(), 0);
   await page.getByRole("button", { name: "Вернуться к архиву" }).click();
-  await page.locator(".footer-top").getByRole("button", { name: /Редакция/ }).click();
+  await page.locator(".admin-entry").click();
   await page.getByRole("heading", { name: "Архив открыт для чтения" }).waitFor();
   assert.equal(await page.locator('dialog input[type="password"]').count(), 0);
   await page.keyboard.press("Escape");

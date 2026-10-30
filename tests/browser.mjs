@@ -203,7 +203,7 @@ try {
   assert.equal(store.places().length, 8);
   await dialog.getByRole("button", { name: "Вернуться к карте" }).click();
   passed.push("Submit story with image and consent; remains unpublished");
-  await page.getByRole("button", { name: "Редакция", exact: true }).click();
+  await page.locator(".admin-entry").click();
   await page
     .getByRole("dialog")
     .getByLabel("Email", { exact: true })

@@ -3588,3 +3588,5 @@ textarea {
 .materials-terms p { margin-top:16px; }
 
 .coordinate-pair-input { display:block; width:100%; margin-top:8px; }
+
+.site-footer .footer-bottom { border-top:0; padding-top:16px; }
