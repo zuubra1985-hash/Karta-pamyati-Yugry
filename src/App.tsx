@@ -949,7 +949,7 @@ export default function App() {
             <OrganizationDetails />
           </section>
         )}
-        {page !== "favorites" && (
+        {page !== "favorites" && page !== "about" && (
           <section className="participate container">
             <div className="participate-symbol">
               <Mark small />
@@ -993,35 +993,16 @@ export default function App() {
               </strong>
             </span>
           </a>
-          <p>
-            Места, которые помним.
-            <br />
-            Истории, которые сохраним.
-          </p>
           <div>
             <button onClick={() => navigate("about")}>О проекте</button>
             <button onClick={() => setDialog({ type: "editor" })}>
               Редакция <ArrowUpRight size={13} />
             </button>
           </div>
-          <span className="footer-region">
-            <MapPin size={15} /> Сделано для Югры
-            <br />
-            <small>С вниманием к прошлому</small>
-          </span>
-        </div>
-        <div className="footer-attribution">
-          <p>«Карта памяти Югры» — авторский проект {organization.shortName}.</p>
-          <a href={`mailto:${organization.email}`}>{organization.email}</a>
+          <a className="footer-contact" href={`mailto:${organization.email}`}>{organization.email}</a>
         </div>
         <div className="footer-bottom">
           <span>© {new Date().getFullYear()} {organization.shortName}. Все права защищены.</span>
-          <span>
-            {archiveMode === "catalogue"
-              ? "Открытый каталог паспортов"
-              : "Первая версия · открыты для ваших историй"}
-          </span>
-          <span>Помнить — значит сохранять.</span>
         </div>
       </footer>
       {toast && (
