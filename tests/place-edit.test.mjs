@@ -33,6 +33,15 @@ test('published passports: authenticated edits, photo lifecycle, conflicts, vali
     assert.equal((await patch({...body, longitude:73.4})).status, 400);
     const response = await patch(body); assert.equal(response.status, 200);
     const saved = await response.json();
+    assert.equal((await fetch(`${base}/api/admin/place-edits`)).status, 401);
+    assert.equal((await fetch(`${base}/api/admin/places/pas-005/history`)).status, 401);
+    const history = await (await fetch(`${base}/api/admin/places/pas-005/history`, {headers:{cookie}})).json();
+    assert.equal(history.length, 1);
+    assert.equal(history[0].editor, 'admin@example.invalid');
+    assert.equal(history[0].before.title, original.title);
+    assert.equal(history[0].after.title, body.title);
+    assert.deepEqual(await (await fetch(`${base}/api/admin/place-edits`, {headers:{cookie}})).json(), history);
+    assert.equal((await fetch(`${base}/api/admin/places/missing/history`, {headers:{cookie}})).status, 404);
     assert.equal(saved.revision, 1); assert.equal(saved.passport.economy, body.passport.economy);
     assert.deepEqual(saved.passport.webSources, original.passport.webSources);
     assert.equal((await fetch(`${base}/api/media/${saved.mediaId}`)).status, 200);

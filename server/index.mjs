@@ -9,7 +9,10 @@ const production = process.env.NODE_ENV === "production";
 export const databasePath =
   process.env.MEMORY_DB || resolve(root, "data/memory.sqlite");
 const store = new Store(databasePath);
-const app = createApp(store, { production, origin: process.env.APP_ORIGIN });
+const trustProxy = Number(process.env.TRUST_PROXY || 0);
+if (!Number.isInteger(trustProxy) || trustProxy < 0 || trustProxy > 5)
+  throw new Error("TRUST_PROXY должен быть числом доверенных прокси от 0 до 5.");
+const app = createApp(store, { production, origin: process.env.APP_ORIGIN, trustProxy });
 const server = createHttpServer(app);
 let vite;
 if (production) {

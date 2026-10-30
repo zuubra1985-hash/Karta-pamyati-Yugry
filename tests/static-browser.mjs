@@ -95,7 +95,17 @@ try {
   assert.equal(await page.locator(".story-card").count(), 36);
   passed.push("Static deployment: direct passport links and 36 story cards");
   await page.locator(".main-nav").getByRole("link", { name: "Воспоминания", exact: true }).click();
-  assert.equal(await page.locator(".memoir-card").count(), 5);
+  assert.equal(await page.locator(".memoir-card").count(), 9);
+  await page.getByLabel("Поиск по воспоминаниям").fill("Пугина");
+  assert.equal(await page.locator(".memoir-card").count(), 1);
+  assert.match(await page.locator(".memoir-narrator").textContent(), /по воспоминаниям Лукерьи/);
+  assert.ok(await page.locator('.memoir-source a[href$="/i-shli-po-etapu-v-sibirskuyu-glush/"]').count());
+  await page.locator(".memoir-places button").click();
+  await page.locator(".place-detail .resident-memories").waitFor();
+  assert.match(await page.locator(".place-detail h2").textContent(), /Ореховский/);
+  assert.equal(await page.locator(".place-detail .memoir-card").count(), 1);
+  await page.keyboard.press("Escape");
+  await page.locator(".main-nav").getByRole("link", { name: "Воспоминания", exact: true }).click();
   await page.getByLabel("Поиск по воспоминаниям").fill("Флейшман");
   assert.equal(await page.locator(".memoir-card").count(), 1);
   assert.match(await page.locator(".memoir-narrator").textContent(), /Георгий Флейшман/);
@@ -105,9 +115,9 @@ try {
   await page.getByLabel("Поиск по воспоминаниям").fill("Флейшман");
   await page.locator(".memoir-places button").click();
   await page.locator(".place-detail .resident-memories").waitFor();
-  assert.equal(await page.locator(".place-detail .memoir-card").count(), 2);
+  assert.equal(await page.locator(".place-detail .memoir-card").count(), 3);
   await page.keyboard.press("Escape");
-  passed.push("Static deployment: five attributed memoirs, narrator search, original publication and correct links to the settlement");
+  passed.push("Static deployment: nine attributed memoirs, narrator search, original publication and correct links to the settlement");
 
   await page.locator(".main-nav").getByRole("link", { name: "Карта мест", exact: true }).click();
   await page.getByRole("button", { name: "OpenStreetMap", exact: true }).click();

@@ -7,7 +7,7 @@ import { Store } from "../server/store.mjs";
 import { createApp } from "../server/app.mjs";
 
 test("published memoirs have named narrators, traceable sources, brief excerpts and valid settlement links", () => {
-  assert.equal(memories.length, 5);
+  assert.equal(memories.length, 9);
   assert.equal(new Set(memories.map((m) => m.id)).size, memories.length);
   const ids = new Set(places.map((p) => p.id));
   for (const memory of memories) {
@@ -24,7 +24,7 @@ test("published memoirs have named narrators, traceable sources, brief excerpts 
 test("memoirs supplement only their actual settlement without exposing editorial evidence or modifying source data", () => {
   const source = places.find((p) => p.id === "pas-018");
   const publicPlace = withMemories(source);
-  assert.equal(publicPlace.memories.length, 2);
+  assert.equal(publicPlace.memories.length, 3);
   assert.ok(publicPlace.memories.every((m) => !Object.hasOwn(m, "evidence")));
   assert.equal(source.memories, undefined);
   assert.equal(withMemories({ id: "unrelated-story" }).memories.length, 0);
@@ -44,14 +44,33 @@ test("production API publishes memoirs consistently and permits the Yandex frame
     const catalogue = await response.json();
     assert.equal(catalogue.length, 36);
     const published = catalogue.flatMap((place) => place.memories);
-    assert.equal(new Set(published.map((memory) => memory.id)).size, 5);
+    assert.equal(new Set(published.map((memory) => memory.id)).size, 9);
     assert.ok(published.every((memory) => !Object.hasOwn(memory, "evidence")));
     const single = await (await fetch(`${base}/api/places/pas-018`)).json();
     assert.deepEqual(single.memories, catalogue.find((place) => place.id === single.id).memories);
-    assert.equal(single.memories.length, 2);
+    assert.equal(single.memories.length, 3);
     assert.equal((await fetch(`${base}/api/places/missing-place`)).status, 404);
   } finally {
     await new Promise((resolve) => server.close(resolve));
     store.close();
   }
+});
+
+test("new Ostyako-Vogulsk memoirs retain their narrators and verified settlement scope", () => {
+  const expected = {
+    "memory-skutin": ["pas-018"],
+    "memory-bakhlykova-ng": ["pas-033"],
+    "memory-plakhotnikova": ["pas-008", "pas-030", "pas-033"],
+    "memory-pugina-zorina": ["pas-016"],
+  };
+  for (const [id, placeIds] of Object.entries(expected)) {
+    const memory = memories.find(m => m.id === id);
+    assert.ok(memory);
+    assert.deepEqual(memory.placeIds, placeIds);
+    assert.equal(new URL(memory.source.url).hostname, "xn----dtbdzdfqbczhet1kob.xn--p1ai");
+    assert.equal(memory.evidence.retrievedOn, "2026-10-30");
+    for (const placeId of placeIds) assert.ok(withMemories({id: placeId}).memories.some(m => m.id === id));
+  }
+  assert.equal(withMemories({id: "pas-025"}).memories.length, 0);
+  assert.match(memories.find(m => m.id === "memory-pugina-zorina").narrator, /по воспоминаниям/);
 });

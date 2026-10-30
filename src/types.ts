@@ -113,6 +113,8 @@ export const afterImageFor = (
       ? `/images/${p.afterImage}.svg`
       : undefined;
 export async function api<T>(url: string, options?: RequestInit): Promise<T> {
+  if (typeof options?.body === "string" && new TextEncoder().encode(options.body).byteLength > 4_000_000)
+    throw new Error("Материал слишком большой для отправки. Уменьшите общий размер фотографий примерно до 2,8 МБ и повторите попытку.");
   const response = await fetch(url, {
     ...options,
     headers: { "Content-Type": "application/json", ...options?.headers },

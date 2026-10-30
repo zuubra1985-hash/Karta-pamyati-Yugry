@@ -9,10 +9,12 @@ import {
   History,
 } from "lucide-react";
 import { api, categoryLabel, type Submission, type EditRecord } from "../types";
+import AdminCatalogue, { AdminHistory } from "./AdminCatalogue";
 import EditSubmission from "./EditSubmission";
 import BeforeAfter from "./BeforeAfter";
 import { PassportCard } from "./Passport";
 export default function Editor({ onPublished, onAuthChange }: { onPublished: () => void; onAuthChange: (authenticated: boolean) => void }) {
+  const [section, setSection] = useState<"catalogue" | "moderation" | "journal">("catalogue");
   const [email, setEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<Submission[]>([]);
@@ -37,7 +39,7 @@ export default function Editor({ onPublished, onAuthChange }: { onPublished: () 
     api<{ email: string }>("/api/admin/session")
       .then((data) => {
         setEmail(data.email);
-      onAuthChange(true);
+        onAuthChange(true);
         void load();
       })
       .catch(() => {})
@@ -89,7 +91,7 @@ export default function Editor({ onPublished, onAuthChange }: { onPublished: () 
         <span className="eyebrow">БЕРЕЖНО СОХРАНЯЕМ ИСТОРИИ</span>
         <h2>Кабинет редактора</h2>
         <p>
-          Войдите, затем откройте нужную карточку в архиве и нажмите «Изменить». Здесь также доступна проверка новых материалов.
+          Управляйте карточками архива, проверяйте материалы жителей и просматривайте историю изменений.
         </p>
         <form onSubmit={login}>
           <label>
@@ -130,7 +132,7 @@ export default function Editor({ onPublished, onAuthChange }: { onPublished: () 
         <div>
           <span className="eyebrow">РЕДАКЦИЯ</span>
           <h2>Кабинет администратора</h2>
-          <p>Для изменения опубликованного паспорта закройте кабинет, откройте карточку и нажмите «Изменить».</p>
+          <p>Карточки, материалы жителей и история работы редакции.</p>
           <p className="muted small">{email}</p>
         </div>
         <button
@@ -141,6 +143,9 @@ export default function Editor({ onPublished, onAuthChange }: { onPublished: () 
               setEmail(null);
               onAuthChange(false);
               setItems([]);
+              setSection("catalogue");
+              setError("");
+              setNotice("");
             } catch (e) {
               setError((e as Error).message);
             }
@@ -149,6 +154,14 @@ export default function Editor({ onPublished, onAuthChange }: { onPublished: () 
           <LogOut size={15} /> Выйти
         </button>
       </div>
+      <nav className="admin-nav" aria-label="Разделы кабинета">
+        <button className={section === "catalogue" ? "active" : ""} aria-pressed={section === "catalogue"} onClick={() => setSection("catalogue")}>Карточки архива</button>
+        <button className={section === "moderation" ? "active" : ""} aria-pressed={section === "moderation"} onClick={() => setSection("moderation")}>Материалы жителей · {items.filter(i => i.status === "pending").length}</button>
+        <button className={section === "journal" ? "active" : ""} aria-pressed={section === "journal"} onClick={() => setSection("journal")}>Журнал изменений</button>
+      </nav>
+      {section === "catalogue" && <AdminCatalogue onSaved={onPublished}/>}
+      {section === "journal" && <AdminHistory/>}
+      {section === "moderation" && <>
       <div className="editor-tabs">
         <button
           className={!history ? "active" : ""}
@@ -362,6 +375,8 @@ export default function Editor({ onPublished, onAuthChange }: { onPublished: () 
           )}
         </article>
       ))}
+      </>}
+      {section !== "moderation" && error && <p className="error" role="alert">{error}</p>}
     </div>
   );
 }

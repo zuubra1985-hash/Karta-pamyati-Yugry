@@ -23,6 +23,32 @@ try {
   await page.getByLabel('Пароль', {exact:true}).fill('test-only-password-123');
   await page.getByRole('button', {name:'Войти в редакцию'}).click();
   await page.getByRole('heading', {name:'Кабинет администратора'}).waitFor();
+  await page.locator('.admin-place').first().waitFor();
+  assert.equal(await page.locator('.admin-place').count(),36);
+  await page.getByLabel('Проверить наполнение').selectOption('gps');
+  assert.equal(await page.locator('.admin-place').count(),4);
+  await page.getByLabel('Проверить наполнение').selectOption('all');
+  await page.getByLabel('Поиск карточек').fill('pas-005');
+  assert.equal(await page.locator('.admin-place').count(),1);
+  await page.getByRole('button', {name:'Изменить: д. Немчинова',exact:true}).click();
+  await page.getByLabel('Название', {exact:true}).fill('Кабинет: паспорт Немчиновой');
+  await page.getByRole('button', {name:'Сохранить',exact:true}).click();
+  await page.getByRole('status').filter({hasText:'изменения сохранены'}).waitFor();
+  await page.getByRole('button', {name:'История: Кабинет: паспорт Немчиновой',exact:true}).click();
+  await page.locator('.admin-history-entry').waitFor();
+  await page.locator('.admin-history-entry summary').click();
+  assert.match(await page.locator('.admin-diff').innerText(),/Кабинет: паспорт Немчиновой/);
+  await page.getByRole('button', {name:'К списку карточек'}).click();
+  await page.getByRole('button', {name:'Журнал изменений',exact:true}).click();
+  await page.locator('.admin-history-entry').waitFor();
+  assert.equal(await page.locator('.admin-history-entry').count(),1);
+  await page.getByRole('button', {name:'Карточки архива',exact:true}).click();
+  await page.locator('.admin-place').first().waitFor();
+  for(const width of [390,768,1440]) {
+    await page.setViewportSize({width,height:900});
+    assert.equal(await page.locator('dialog').evaluate(d=>d.scrollWidth > d.clientWidth),false,`cabinet overflow at ${width}`);
+  }
+  await page.setViewportSize({width:1440,height:1000});
   await page.getByRole('button', {name:'Закрыть окно'}).click();
   await page.goto(`${origin}/#place/pas-005`, {waitUntil:'networkidle'});
   await page.getByRole('button', {name:'Изменить',exact:true}).click();
@@ -57,5 +83,5 @@ try {
   await page.goto(`${origin}/#place/pas-005`,{waitUntil:'networkidle'});
   assert.equal(await page.getByRole('button',{name:'Изменить',exact:true}).count(),0);
   assert.deepEqual(errors,[]);
-  console.log('PASS Admin: top login, published passport/text/photo/GPS/appearance edits, reload, cancel, responsive header, logout');
+  console.log('PASS Admin: catalogue search, GPS filter, in-cabinet editing, per-place and global history, mobile cabinet, top login, published passport/text/photo/GPS/appearance edits, reload, cancel, responsive header, logout');
 } finally {await browser.close(); await new Promise(resolve => server.close(resolve)); store.close();}

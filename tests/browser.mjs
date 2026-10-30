@@ -204,6 +204,7 @@ try {
     .getByLabel("Пароль", { exact: true })
     .fill("browser-test-password-only");
   await page.getByRole("button", { name: "Войти в редакцию" }).click();
+  await page.getByRole("button", { name: /^Материалы жителей/ }).click();
   await page.locator(".review-card").waitFor();
   await page
     .getByRole("button", { name: "Уточнить материал", exact: true })

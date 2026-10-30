@@ -200,6 +200,13 @@ export class Store {
     const row = this.db.prepare("SELECT data FROM places WHERE id=?").get(id);
     return row ? JSON.parse(row.data) : null;
   }
+  placeHistory(placeId) {
+    const rows = placeId
+      ? this.db.prepare("SELECT * FROM place_edits WHERE place_id=? ORDER BY created_at DESC, revision DESC LIMIT 100").all(placeId)
+      : this.db.prepare("SELECT * FROM place_edits ORDER BY created_at DESC, revision DESC LIMIT 100").all();
+    return rows.map(row => ({placeId: row.place_id, revision: row.revision, editor: row.editor,
+      createdAt: row.created_at, before: JSON.parse(row.before_data), after: JSON.parse(row.after_data)}));
+  }
   updatePlace(id, updates, revision, editor, photo) {
     return this.transaction(() => {
       const current = this.place(id);

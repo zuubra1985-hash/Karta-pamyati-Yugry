@@ -19,10 +19,13 @@ try {
   process.stdout.write("\n");
   if (password !== confirmation) throw new Error("Пароли не совпадают.");
   const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-  store = new Store(
-    process.env.MEMORY_DB || resolve(root, "data/memory.sqlite"),
-  );
-  store.createAdmin(email, password);
+  if (process.env.TURSO_DATABASE_URL) {
+    const { openCloudStore } = await import('../server/cloud-runtime.mjs');
+    store = await openCloudStore();
+  } else {
+    store = new Store(process.env.MEMORY_DB || resolve(root, "data/memory.sqlite"));
+  }
+  await store.createAdmin(email, password);
   console.log("Редактор создан. Войдите через раздел «Редакция».");
 } catch (e) {
   console.error(e.message);

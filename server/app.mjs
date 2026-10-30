@@ -27,9 +27,13 @@ function decodePhoto(photo) {
     throw new Error("Допустимы только изображения JPEG, PNG и WebP.");
   return { bytes, type: photo.type };
 }
-export function createApp(store, { production = false, origin } = {}) {
+export function createApp(store, { production = false, origin, trustProxy = false } = {}) {
   const app = express();
+  const route = (method, path, ...handlers) => app[method](path, ...handlers.map(handler =>
+    (req, res, next) => Promise.resolve().then(() => handler(req, res, next)).catch(next)));
+
   app.disable("x-powered-by");
+  app.set("trust proxy", trustProxy);
   app.use(
     helmet({
       contentSecurityPolicy: production
@@ -80,30 +84,33 @@ export function createApp(store, { production = false, origin } = {}) {
     );
     return match?.[1];
   };
-  const requireAdmin = (req, res, next) => {
-    const session = store.session(token(req));
+  const requireAdmin = async (req, res, next) => {
+    const session = await store.session(token(req));
     if (!session)
       return res.status(401).json({ error: "Войдите в кабинет редактора." });
     req.admin = session;
     next();
   };
-  const limiter = (max) =>
-    rateLimit({
+  const limiter = (max) => store.rateLimit ? async (req,res,next) => {
+    if (!await store.rateLimit(`${req.path}:${req.ip}`, max, 15*60*1000))
+      return res.status(429).json({error: "Слишком много запросов. Попробуйте через 15 минут."});
+    next();
+  } : rateLimit({
       windowMs: 15 * 60 * 1000,
       limit: max,
       standardHeaders: "draft-7",
       legacyHeaders: false,
       message: { error: "Слишком много запросов. Попробуйте через 15 минут." },
     });
-  app.get("/api/health", (_, res) => res.json({ status: "ok" }));
-  app.get("/api/places", (_, res) => res.json(store.places().map(withMemories)));
-  app.get("/api/places/:id", (req, res) => {
-    const place = store.place(req.params.id);
+  route("get", "/api/health", async (_, res) => { if (store.health) await store.health(); res.json({ status: "ok" }); });
+  route("get", "/api/places", async (_, res) => res.json((await store.places()).map(withMemories)));
+  route("get", "/api/places/:id", async (req, res) => {
+    const place = await store.place(req.params.id);
     return place
       ? res.json(withMemories(place))
       : res.status(404).json({ error: "Место не найдено." });
   });
-  app.post("/api/submissions", limiter(10), (req, res) => {
+  route("post", "/api/submissions", limiter(10), async (req, res) => {
     const parsed = submissionSchema.safeParse(req.body);
     if (!parsed.success)
       return res.status(400).json({
@@ -120,18 +127,18 @@ export function createApp(store, { production = false, origin } = {}) {
     } catch (e) {
       return res.status(400).json({ error: e.message });
     }
-    const id = store.submit(data, image, afterImage);
+    const id = await store.submit(data, image, afterImage);
     res.status(201).json({ id, status: "pending" });
   });
-  app.get("/api/media/:id", (req, res) => {
-    const media = store.media(
+  route("get", "/api/media/:id", async (req, res) => {
+    const media = await store.media(
       req.params.id,
-      Boolean(store.session(token(req))),
+      Boolean(await store.session(token(req))),
     );
     if (!media) return res.sendStatus(404);
     res.type(media.type).send(Buffer.from(media.bytes));
   });
-  app.post("/api/admin/login", limiter(10), (req, res) => {
+  route("post", "/api/admin/login", limiter(10), async (req, res) => {
     const parsed = z
       .object({
         email: z.string().email().max(254),
@@ -140,7 +147,7 @@ export function createApp(store, { production = false, origin } = {}) {
       .safeParse(req.body);
     if (!parsed.success)
       return res.status(400).json({ error: "Укажите email и пароль." });
-    const sessionToken = store.login(parsed.data.email, parsed.data.password);
+    const sessionToken = await store.login(parsed.data.email, parsed.data.password);
     if (!sessionToken)
       return res.status(401).json({ error: "Неверный email или пароль." });
     res
@@ -153,11 +160,11 @@ export function createApp(store, { production = false, origin } = {}) {
       })
       .json({ email: parsed.data.email });
   });
-  app.get("/api/admin/session", requireAdmin, (req, res) =>
+  route("get", "/api/admin/session", requireAdmin, async (req, res) =>
     res.json(req.admin),
   );
-  app.post("/api/admin/logout", requireAdmin, (req, res) => {
-    store.logout(token(req));
+  route("post", "/api/admin/logout", requireAdmin, async (req, res) => {
+    await store.logout(token(req));
     res
       .clearCookie("memory_session", {
         httpOnly: true,
@@ -167,25 +174,30 @@ export function createApp(store, { production = false, origin } = {}) {
       })
       .json({ ok: true });
   });
-  app.patch("/api/admin/places/:id", requireAdmin, (req, res) => {
+  route("get", "/api/admin/place-edits", requireAdmin, async (_, res) => res.json(await store.placeHistory()));
+  route("get", "/api/admin/places/:id/history", requireAdmin, async (req, res) => {
+    if (!await store.place(req.params.id)) return res.status(404).json({error: "Место не найдено."});
+    res.json(await store.placeHistory(req.params.id));
+  });
+  route("patch", "/api/admin/places/:id", requireAdmin, async (req, res) => {
     const parsed = placeEditSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({error: parsed.error.issues.find(i => i.code === "custom")?.message || "Проверьте поля карточки, паспорта, фото и GPS."});
     const {revision, photo, ...updates} = parsed.data;
-    if (!store.place(req.params.id)) return res.status(404).json({error: "Место не найдено."});
+    if (!await store.place(req.params.id)) return res.status(404).json({error: "Место не найдено."});
     let image;
     try { image = photo === undefined ? undefined : decodePhoto(photo); }
     catch (e) { return res.status(400).json({error: e.message}); }
-    const saved = store.updatePlace(req.params.id, updates, revision, req.admin.email, image);
+    const saved = await store.updatePlace(req.params.id, updates, revision, req.admin.email, image);
     if (!saved) return res.status(409).json({error: "Карточка изменена другим администратором. Откройте её заново перед сохранением."});
     res.json(withMemories(saved));
   });
-  app.get("/api/admin/submissions", requireAdmin, (_, res) =>
-    res.json(store.submissions()),
+  route("get", "/api/admin/submissions", requireAdmin, async (_, res) =>
+    res.json(await store.submissions()),
   );
-  app.get("/api/admin/submissions/:id/history", requireAdmin, (req, res) =>
-    res.json(store.editHistory(req.params.id)),
+  route("get", "/api/admin/submissions/:id/history", requireAdmin, async (req, res) =>
+    res.json(await store.editHistory(req.params.id)),
   );
-  app.patch("/api/admin/submissions/:id", requireAdmin, (req, res) => {
+  route("patch", "/api/admin/submissions/:id", requireAdmin, async (req, res) => {
     const parsed = editorialSchema.safeParse(req.body);
     if (!parsed.success)
       return res.status(400).json({
@@ -193,7 +205,7 @@ export function createApp(store, { production = false, origin } = {}) {
           "Проверьте заголовок, текст, источники, год и координаты. Системные поля менять нельзя.",
       });
     const { revision, ...updates } = parsed.data;
-    const current = store.submission(req.params.id);
+    const current = await store.submission(req.params.id);
     if (
       !current ||
       current.status !== "pending" ||
@@ -214,7 +226,7 @@ export function createApp(store, { production = false, origin } = {}) {
         error:
           "Для пары снимков укажите источник и год второго снимка не раньше первого. Без пары эти поля не используются.",
       });
-    const updated = store.revise(
+    const updated = await store.revise(
       req.params.id,
       updates,
       revision,
@@ -226,7 +238,7 @@ export function createApp(store, { production = false, origin } = {}) {
         .json({ error: "Материал изменился. Обновите список." });
     res.json(updated);
   });
-  app.post("/api/admin/submissions/:id", requireAdmin, (req, res) => {
+  route("post", "/api/admin/submissions/:id", requireAdmin, async (req, res) => {
     const parsed = z
       .object({
         action: z.enum(["approve", "reject"]),
@@ -237,12 +249,12 @@ export function createApp(store, { production = false, origin } = {}) {
     if (!parsed.success)
       return res.status(400).json({ error: "Некорректное решение." });
     if (
-      !store.moderate(
+      !(await store.moderate(
         req.params.id,
         parsed.data.action,
         parsed.data.reason,
         parsed.data.revision,
-      )
+      ))
     )
       return res.status(409).json({
         error:
@@ -250,7 +262,7 @@ export function createApp(store, { production = false, origin } = {}) {
       });
     res.json({ ok: true });
   });
-  app.use("/api", (_, res) =>
+  app.use("/api", async (_, res) =>
     res.status(404).json({ error: "Такого API нет." }),
   );
   app.use((error, req, res, next) => {

@@ -3518,3 +3518,41 @@ textarea {
   .mobile-menu { display:flex; }
   .header-actions { margin-left:auto; }
 }
+
+/* Administrator workspace */
+.admin-nav { display:flex; gap:8px; flex-wrap:wrap; padding:8px; background:#eeeee5; border-radius:12px; margin:24px 0; }
+.admin-nav button { flex:1; padding:12px 16px; border:0; border-radius:8px; background:transparent; font-weight:600; color:var(--green); }
+.admin-nav button.active { background:var(--green); color:white; }
+.admin-stats { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin:24px 0; }
+.admin-stats > div { display:grid; grid-template-columns:24px 1fr; align-items:center; gap:8px; border:1px solid var(--border); border-radius:10px; padding:18px; }
+.admin-stats strong { font-size:28px; font-family:var(--serif); }
+.admin-stats span { grid-column:1/-1; font-size:12px; color:#667060; }
+.admin-section-heading { display:flex; align-items:center; justify-content:space-between; gap:16px; margin:20px 0; }
+.admin-section-heading h3 { margin:0; font-family:var(--serif); font-size:24px; }
+.admin-filters { display:grid; grid-template-columns:2fr 1fr 1fr; gap:12px; margin:20px 0; }
+.admin-filters label { min-width:0; display:grid; gap:8px; font-size:12px; }
+.admin-filters label > span { display:flex; align-items:center; gap:6px; }
+.admin-filters input, .admin-filters select { width:100%; min-width:0; padding:11px; border:1px solid var(--border); border-radius:6px; background:white; }
+.admin-place { display:flex; align-items:center; gap:16px; padding:18px 0; border-bottom:1px solid var(--border); }
+.admin-place > img { width:90px; height:85px; object-fit:cover; border-radius:8px; }
+.admin-place > div:first-of-type { flex:1; min-width:0; }
+.admin-place h4 { font-family:var(--serif); font-size:21px; margin:6px 0; }
+.admin-place p { font-size:12px; margin:6px 0; }
+.admin-tags { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+.admin-tags span { background:#edefe5; padding:4px 8px; border-radius:4px; font-size:10px; }
+.admin-place-actions { display:grid; gap:12px; justify-items:center; }
+.admin-history-entry { margin:12px 0; border:1px solid var(--border); border-radius:8px; }
+.admin-history-entry > summary { cursor:pointer; padding:16px; overflow-wrap:anywhere; }
+.admin-history-entry > summary span, .admin-history-entry > summary small { display:block; font-size:12px; margin-top:8px; }
+.admin-diff { padding:0 16px 16px; overflow-wrap:anywhere; }
+.admin-diff p { white-space:pre-wrap; }
+@media(max-width:700px) {
+ .admin-nav button { flex:auto; font-size:12px; padding:10px; }
+ .admin-stats { gap:6px; } .admin-stats > div { padding:10px; } .admin-stats span { font-size:10px; }
+ .admin-filters { grid-template-columns:1fr; }
+ .admin-place { flex-wrap:wrap; gap:10px; } .admin-place > img { width:60px; height:60px; }
+ .admin-place-actions { display:flex; width:100%; justify-content:flex-end; }
+ .admin-place h4 { font-size:18px; }
+}
+
+.admin-history-photo { display:block; max-width:100%; max-height:240px; object-fit:contain; margin-top:12px; }
