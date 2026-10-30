@@ -3570,3 +3570,9 @@ textarea {
 .footer-attribution a { white-space:nowrap; }
 .footer-bottom > span { overflow-wrap:anywhere; }
 @media(max-width:700px) { .organization-details { padding:20px; } .organization-requisites { grid-template-columns:1fr; } .footer-attribution { align-items:flex-start; flex-direction:column; gap:8px; } }
+
+.about-policy h2 { font-family:var(--serif); font-size:clamp(28px,4vw,40px); line-height:1.2; margin:18px 0 24px; }
+.about-policy > .button { margin-top:20px; }
+.materials-terms { margin-top:28px; border-top:1px solid var(--border); padding-top:20px; }
+.materials-terms summary { cursor:pointer; font-weight:600; }
+.materials-terms p { margin-top:16px; }
