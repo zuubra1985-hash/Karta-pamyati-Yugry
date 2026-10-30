@@ -31,6 +31,8 @@ import {
 import Modal from "./components/Modal";
 import SubmissionForm from "./components/SubmissionForm";
 import EditPlace from "./components/EditPlace";
+import OrganizationDetails from "./components/OrganizationDetails";
+import { organization } from "./organization";
 import Editor from "./components/Editor";
 import Timeline from "./components/Timeline";
 import BeforeAfter from "./components/BeforeAfter";
@@ -921,12 +923,15 @@ export default function App() {
                 публичной регистрации пользователей.
               </p>
               <p>
-                Для запуска публичного проекта владельцу необходимо указать
-                контакты редакции, порядок исправления и удаления материалов,
-                сведения об операторе и условия обработки персональных данных.
-                Эти реквизиты пока не предоставлены.
+                Организация, реализующая проект, и оператор материалов — {organization.shortName}.
+                Контакт для обращений: <a href={`mailto:${organization.email}`}>{organization.email}</a>.
+                Данные полного сервера хранятся с использованием Turso и Vercel Blob;
+                эти сервисы могут обрабатывать данные за пределами России.
+                Контакты и материалы сохраняются до ручного удаления редакцией;
+                автоматический срок удаления сейчас не установлен.
               </p>
             </div>
+            <OrganizationDetails />
           </section>
         )}
         {page !== "favorites" && (
@@ -990,8 +995,12 @@ export default function App() {
             <small>С вниманием к прошлому</small>
           </span>
         </div>
+        <div className="footer-attribution">
+          <p>«Карта памяти Югры» — авторский проект {organization.shortName}.</p>
+          <a href={`mailto:${organization.email}`}>{organization.email}</a>
+        </div>
         <div className="footer-bottom">
-          <span>© {new Date().getFullYear()} Карта памяти Югры</span>
+          <span>© {new Date().getFullYear()} {organization.shortName}. Все права защищены.</span>
           <span>
             {archiveMode === "catalogue"
               ? "Открытый каталог паспортов"

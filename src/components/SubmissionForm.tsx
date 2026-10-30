@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Check, Send, ArrowRight } from "lucide-react";
 import { api, categories, type Photo } from "../types";
+import { organization } from "../organization";
 import PhotoUpload from "./PhotoUpload";
 import CoordinatesFields from "./CoordinatesFields";
 import { readCoordinates } from "../maps";
@@ -220,6 +221,7 @@ export default function SubmissionForm({ onClose }: { onClose: () => void }) {
             placeholder="Не публикуется на сайте"
           />
         </label>
+        <p className="full small muted">Материал принимает {organization.shortName}. Автор и источник будут указаны при публикации; права на ваши текст и фотографии сохраняются за вами. Для уточнения или отзыва материала: <a href={`mailto:${organization.email}`}>{organization.email}</a>.</p>
         <label className="checkbox full">
           <input type="checkbox" name="consent" required />
           <span>

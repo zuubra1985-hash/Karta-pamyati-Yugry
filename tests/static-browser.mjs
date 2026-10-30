@@ -95,7 +95,7 @@ try {
   assert.equal(await page.locator(".story-card").count(), 36);
   passed.push("Static deployment: direct passport links and 36 story cards");
   await page.locator(".main-nav").getByRole("link", { name: "Воспоминания", exact: true }).click();
-  assert.equal(await page.locator(".memoir-card").count(), 9);
+  assert.equal(await page.locator(".memoir-card").count(), 14);
   await page.getByLabel("Поиск по воспоминаниям").fill("Пугина");
   assert.equal(await page.locator(".memoir-card").count(), 1);
   assert.match(await page.locator(".memoir-narrator").textContent(), /по воспоминаниям Лукерьи/);
@@ -117,7 +117,7 @@ try {
   await page.locator(".place-detail .resident-memories").waitFor();
   assert.equal(await page.locator(".place-detail .memoir-card").count(), 3);
   await page.keyboard.press("Escape");
-  passed.push("Static deployment: nine attributed memoirs, narrator search, original publication and correct links to the settlement");
+  passed.push("Static deployment: fourteen attributed memoirs, narrator search, original publication and correct links to the settlement");
 
   await page.locator(".main-nav").getByRole("link", { name: "Карта мест", exact: true }).click();
   await page.getByRole("button", { name: "OpenStreetMap", exact: true }).click();
@@ -152,6 +152,13 @@ try {
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
   assert.deepEqual(errors, []);
   passed.push("Static deployment: mobile catalogue and passport without overflow or JavaScript errors");
+  await page.keyboard.press("Escape");
+  await page.goto(`${origin}/#about`, { waitUntil: "networkidle" });
+  await page.locator(".organization-details").waitFor();
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+  assert.ok(await page.locator('.organization-details a[href="mailto:novichek2@yandex.ru"]').count());
+  assert.deepEqual(errors, []);
+  passed.push("Organization details, contact link and rights notice fit the mobile About page");
   console.log(JSON.stringify({ staticBrowserChecks: passed, errors }, null, 2));
 } finally {
   await browser.close();

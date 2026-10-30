@@ -7,7 +7,7 @@ import { Store } from "../server/store.mjs";
 import { createApp } from "../server/app.mjs";
 
 test("published memoirs have named narrators, traceable sources, brief excerpts and valid settlement links", () => {
-  assert.equal(memories.length, 9);
+  assert.equal(memories.length, 14);
   assert.equal(new Set(memories.map((m) => m.id)).size, memories.length);
   const ids = new Set(places.map((p) => p.id));
   for (const memory of memories) {
@@ -44,7 +44,7 @@ test("production API publishes memoirs consistently and permits the Yandex frame
     const catalogue = await response.json();
     assert.equal(catalogue.length, 36);
     const published = catalogue.flatMap((place) => place.memories);
-    assert.equal(new Set(published.map((memory) => memory.id)).size, 9);
+    assert.equal(new Set(published.map((memory) => memory.id)).size, 14);
     assert.ok(published.every((memory) => !Object.hasOwn(memory, "evidence")));
     const single = await (await fetch(`${base}/api/places/pas-018`)).json();
     assert.deepEqual(single.memories, catalogue.find((place) => place.id === single.id).memories);
@@ -73,4 +73,21 @@ test("new Ostyako-Vogulsk memoirs retain their narrators and verified settlement
   }
   assert.equal(withMemories({id: "pas-025"}).memories.length, 0);
   assert.match(memories.find(m => m.id === "memory-pugina-zorina").narrator, /по воспоминаниям/);
+});
+
+test("additional memoirs preserve the actual narrator and new settlement links", () => {
+  const expected = {
+    "memory-stepanova-tromagan": ["pas-026"], "memory-shchepetkina-rybachiy": ["pas-019"],
+    "memory-provodnikov": ["pas-033"], "memory-kuivasheva": ["pas-033"], "memory-ryanina": ["pas-012"],
+  };
+  for (const [id, placeIds] of Object.entries(expected)) {
+    const item = memories.find(m => m.id === id);
+    assert.ok(item); assert.deepEqual(item.placeIds, placeIds);
+    assert.equal(item.evidence.narratorConfirmed, true);
+    assert.equal(item.evidence.placeLinkConfirmed, true);
+    assert.ok(item.evidence.reviewNotes.length > 50);
+  }
+  assert.match(memories.find(m => m.id === "memory-provodnikov").narrator, /Александр Александрович Проводников/);
+  assert.match(memories.find(m => m.id === "memory-kuivasheva").narrator, /Анна Нестеровна Куйвашева/);
+  assert.match(memories.find(m => m.id === "memory-ryanina").narrator, /Фелицата Васильевна Рянина/);
 });
