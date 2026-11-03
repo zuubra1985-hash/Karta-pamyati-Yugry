@@ -38,19 +38,28 @@ try {
   assert.equal(await page.locator(".mini-card").count(), 36);
   assert.match(await page.locator(".hero-facts").textContent(), /36/);
   assert.match(await page.locator(".demo-notice").textContent(), /36 историй/);
-  await page.getByLabel("Тип события", {exact:true}).selectOption("Упразднение");
-  assert.equal(await page.locator(".mini-card").count(),2);
-  assert.match(await page.locator(".timeline-note").innerText(), /только события «Упразднение»/);
+  assert.equal(await page.locator(".timeline").count(), 0);
+  await page.goto(origin + "/#memories", {waitUntil:"networkidle"});
+  assert.equal(await page.locator(".timeline").count(), 1);
+  assert.equal(await page.locator(".memoir-card").count(), 14);
+  const memoryIds = new Set(published.filter(p => p.dateLabel === "Учёт населения").flatMap(p => p.memories.map(m => m.id)));
   await page.getByLabel("Тип события", {exact:true}).selectOption("Учёт населения");
-  assert.equal(await page.locator(".mini-card").count(),13);
-  await page.getByLabel("Тип события", {exact:true}).selectOption("Возникновение");
-  assert.equal(await page.locator(".mini-card").count(),1);
-  assert.match(await page.locator(".mini-card").innerText(), /Рябиновый/);
-  await page.waitForFunction(() => [...document.querySelectorAll('.timeline-histogram div[title*="0 карточек."] > span')].every(el => el.getBoundingClientRect().height === 0));
+  assert.equal(await page.locator(".memoir-card").count(), memoryIds.size);
+  assert.match(await page.locator(".timeline-note").first().innerText(), /только события «Учёт населения»/);
   await page.getByLabel("Тип события", {exact:true}).selectOption("all");
-  assert.equal(await page.locator(".mini-card").count(),36);
-  assert.match(await page.locator(".timeline-note").innerText(), /не только даты основания/);
-  passed.push("Timeline separates census, abolition and founding with matching card counts");
+  await page.getByRole("slider", {name:"Начальный год", exact:true}).fill("2000");
+  assert.equal(await page.locator(".memoir-card").count(), 0);
+  await page.getByRole("button", {name:"Все годы", exact:true}).click();
+  assert.equal(await page.locator(".memoir-card").count(), 14);
+  await page.waitForFunction(() => [...document.querySelectorAll('.timeline-histogram div[title*="0 карточек."] > span')].every(el => el.getBoundingClientRect().height === 0));
+  await page.getByRole("slider", {name:"Начальный год", exact:true}).fill("2000");
+  // Hash navigation deliberately retains state: hidden filters must not affect other sections.
+  for (const section of ["stories", "favorites", "routes", "about", "map"]) {
+    await page.goto(origin + "/#" + section, {waitUntil:"networkidle"});
+    assert.equal(await page.locator(".timeline").count(), 0);
+  }
+  assert.equal(await page.locator(".mini-card").count(), 36);
+  passed.push("Timeline only in memories, filters linked stories, resets and never filters other sections");
   const mapFrame = page.getByTitle("Яндекс Карты — поселения Югры");
   await mapFrame.waitFor();
   assert.equal(new URL(await mapFrame.getAttribute("src")).searchParams.get("pt").split("~").length, 32);

@@ -48,27 +48,8 @@ try {
   await page.getByLabel("Десятилетие").selectOption("1950");
   assert.equal(await page.locator(".mini-card").count(), 1);
   await page.getByLabel("Десятилетие").selectOption("all");
-  await page
-    .getByRole("slider", { name: "Начальный год", exact: true })
-    .fill("1970");
-  await page
-    .getByRole("slider", { name: "Конечный год", exact: true })
-    .fill("1980");
-  assert.equal(await page.locator(".mini-card").count(), 4);
-  assert.equal(await page.locator(".leaflet-marker-icon").count(), 4);
-  await page
-    .getByRole("slider", { name: "Начальный год", exact: true })
-    .fill("1990");
-  assert.equal(await page.locator(".mini-card").count(), 1);
-  await page
-    .getByRole("slider", { name: "Конечный год", exact: true })
-    .fill("1970");
-  assert.equal(await page.locator(".mini-card").count(), 2);
-  await page.getByRole("button", { name: "Все годы", exact: true }).click();
-  assert.equal(await page.locator(".mini-card").count(), 8);
-  passed.push(
-    "Timeline: date range, synchronized markers, crossed handles and reset",
-  );
+  assert.equal(await page.locator(".timeline").count(), 0);
+  passed.push("Map keeps decade filters without the memories timeline");
   await page.getByRole("button", { name: "Без примеров", exact: true }).click();
   await page.locator(".place-scroll .empty").waitFor();
   await page.getByRole("button", { name: "Без примеров", exact: true }).click();

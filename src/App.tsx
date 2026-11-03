@@ -262,14 +262,9 @@ export default function App() {
       return (
         (!query || haystack.includes(query)) &&
         (category === "all" || p.category === category) &&
-        matchesEvent(p, event) &&
         (decade === "all" ||
           (p.year !== null &&
             Math.floor(p.year / 10) * 10 === Number(decade))) &&
-        (!yearRange ||
-          (p.year !== null &&
-            p.year >= yearRange[0] &&
-            p.year <= yearRange[1])) &&
         (!onlyReal || (hasCatalogue ? Boolean(p.passport) : !p.demo)) &&
         (page !== "favorites" || favorites.includes(p.id))
       );
@@ -286,8 +281,6 @@ export default function App() {
     search,
     category,
     decade,
-    yearRange,
-    event,
     sort,
     page,
     favorites,
@@ -304,12 +297,20 @@ export default function App() {
   const favoriteCount = places.filter((p) => favorites.includes(p.id)).length;
   const memories = useMemo(() => [...new Map(places.flatMap((p) => (p.memories || []).map((memory) => [memory.id, memory] as const))).values()], [places]);
   const placeTitles = useMemo(() => new Map(places.map((p) => [p.id, p.title])), [places]);
-  const filteredMemories = useMemo(() => memories.filter((memory) => `${memory.narrator} ${memory.title} ${memory.summary} ${memory.placeIds.map((id) => placeTitles.get(id) || "").join(" ")}`.toLocaleLowerCase("ru").replaceAll("ё", "е").includes(search.toLocaleLowerCase("ru").replaceAll("ё", "е").trim())), [memories, placeTitles, search]);
   const contributedMemories = useMemo(() => places.filter(p => !p.demo && !p.catalogue), [places]);
+  const memoryPlaces = useMemo(() => {
+    const ids = new Set(memories.flatMap(memory => memory.placeIds));
+    return places.filter(p => ids.has(p.id) || contributedMemories.some(memory => memory.id === p.id));
+  }, [places, memories, contributedMemories]);
+  const matchingMemoryPlaces = useMemo(() => new Set(memoryPlaces.filter(p => matchesEvent(p, event) && (!yearRange || (p.year !== null && p.year >= yearRange[0] && p.year <= yearRange[1]))).map(p => p.id)), [memoryPlaces, event, yearRange]);
+  const filteredMemories = useMemo(() => memories.filter(memory =>
+    memory.placeIds.some(id => matchingMemoryPlaces.has(id)) &&
+    `${memory.narrator} ${memory.title} ${memory.summary} ${memory.placeIds.map(id => placeTitles.get(id) || "").join(" ")}`.toLocaleLowerCase("ru").replaceAll("ё", "е").includes(search.toLocaleLowerCase("ru").replaceAll("ё", "е").trim())
+  ), [memories, matchingMemoryPlaces, placeTitles, search]);
   const filteredContributions = useMemo(() => {
     const query = search.toLocaleLowerCase("ru").replaceAll("ё", "е").trim();
-    return contributedMemories.filter(p => `${p.title} ${p.location} ${p.author} ${p.story}`.toLocaleLowerCase("ru").replaceAll("ё", "е").includes(query));
-  }, [contributedMemories, search]);
+    return contributedMemories.filter(p => matchingMemoryPlaces.has(p.id) && `${p.title} ${p.location} ${p.author} ${p.story}`.toLocaleLowerCase("ru").replaceAll("ё", "е").includes(query));
+  }, [contributedMemories, matchingMemoryPlaces, search]);
   const mapNumbers = useMemo(() => new Map(filtered.filter((p) => hasCoordinates(p)).map((p, i) => [p.id, i + 1])), [filtered]);
   function navigate(next: Page) {
     window.location.hash = next;
@@ -637,23 +638,6 @@ export default function App() {
                 {hasCatalogue ? "С паспортом" : "Без примеров"}
               </button>
             </div>
-            <Timeline
-              places={places}
-              event={event}
-              onEventChange={next => { setEvent(next); setDecade("all"); setYearRange(null); }}
-              value={
-                yearRange ||
-                (decade !== "all" ? [Number(decade), Number(decade) + 9] : null)
-              }
-              onChange={(range) => {
-                setDecade("all");
-                setYearRange(range);
-              }}
-              onReset={() => {
-                setDecade("all");
-                setYearRange(null);
-              }}
-            />
             {!loading && !loadError && <div className="demo-notice">
               <span className="demo-dot" />
               <p>
@@ -855,13 +839,24 @@ export default function App() {
         {page === "memories" && !loading && !loadError && (
           <section className="container memoir-page">
             <label className="search-field"><Search size={19} /><input aria-label="Поиск по воспоминаниям" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Рассказчик, поселение или слово из воспоминания…" /></label>
+            {memoryPlaces.length > 0 && <>
+              <Timeline
+                places={memoryPlaces}
+                event={event}
+                onEventChange={next => { setEvent(next); setYearRange(null); }}
+                value={yearRange}
+                onChange={setYearRange}
+                onReset={() => setYearRange(null)}
+              />
+              <p className="timeline-note">Шкала отбирает воспоминания по событиям связанных карточек. Период самого рассказа указан рядом с его заголовком.</p>
+            </>}
             {filteredMemories.length > 0 && <ResidentMemories
               memories={filteredMemories}
               placeTitles={placeTitles}
               onPlace={(id) => { const place = places.find((p) => p.id === id); if (place) openPlace(place); }}
             />}
             {filteredContributions.length > 0 && <section className="contributor-memories" aria-label="Воспоминания участников"><h2>Воспоминания участников</h2><div className="story-grid">{filteredContributions.map(p => <StoryCard key={p.id} place={p} saved={favorites.includes(p.id)} onFavorite={() => toggleFavorite(p.id)} onOpen={() => openPlace(p)}/>)}</div></section>}
-            {!filteredMemories.length && !filteredContributions.length && <div className="empty"><h3>{memories.length || contributedMemories.length ? "Воспоминания не найдены" : "Воспоминания ещё не добавлены"}</h3><p>{memories.length || contributedMemories.length ? "Попробуйте другое имя или название поселения." : "В этом архиве пока нет опубликованных личных свидетельств."}</p></div>}
+            {!filteredMemories.length && !filteredContributions.length && <div className="empty"><h3>{memories.length || contributedMemories.length ? "Воспоминания не найдены" : "Воспоминания ещё не добавлены"}</h3><p>{memories.length || contributedMemories.length ? "Измените поиск или фильтры шкалы." : "В этом архиве пока нет опубликованных личных свидетельств."}</p></div>}
           </section>
         )}
         {page === "routes" && !loading && !loadError && (
