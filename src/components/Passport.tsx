@@ -20,7 +20,7 @@ const fields: {
 export function readPassport(values: Record<string, FormDataEntryValue>) {
   const data = Object.fromEntries(
     Object.entries(values).filter(
-      ([key]) => key !== "includePassport" && !key.startsWith("passport_"),
+      ([key]) => key !== "includePassport" && !key.startsWith("passport_") && !key.startsWith("photoCredit_") && !key.startsWith("afterPhotoCredit_"),
     ),
   );
   const passport =
@@ -102,7 +102,7 @@ export function PassportCard({
     { key: "coordinateNote", label: "Достоверность местоположения", max: 1000 },
   ];
   const rows = [...fields.slice(0, 6), ...extra].filter((f) =>
-    passport[f.key]?.trim(),
+    f.key === "condition" || f.key === "protectionStatus" || passport[f.key]?.trim(),
   );
   const url = passport.documentUrl?.startsWith("https://")
     ? passport.documentUrl
@@ -121,7 +121,7 @@ export function PassportCard({
           {rows.map((f) => (
             <div key={f.key}>
               <dt>{f.label}</dt>
-              <dd>{passport[f.key]}</dd>
+              <dd>{passport[f.key] || (f.key === "condition" ? "Состояние не установлено" : "Охранный статус не подтверждён")}</dd>
             </div>
           ))}
         </dl>
@@ -147,6 +147,7 @@ export function PassportCard({
             </ul>
           </details>
         ) : null}
+        {!passport.webSources?.length && <p className="source-gap">Отдельная внешняя публикация в карточке не указана. Сведения приведены по документу проекта и требуют независимого подтверждения.</p>}
         {passport.webSources?.length ? (
           <div className="passport-web-sources">
             <strong>Опубликованные источники</strong>

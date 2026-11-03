@@ -30,7 +30,7 @@ export default function OpenStreetMap({ points, selected, onSelect, searchPoint 
     group.clearLayers();
     for (const point of points) {
       const pin = document.createElement("span");
-      pin.className = `memory-pin ${point.coordinateStatus === "hypothesis" ? "hypothesis" : ""} ${point.id === selected ? "active" : ""}`;
+      pin.className = `memory-pin ${point.coordinateStatus !== "confirmed" ? "hypothesis" : ""} ${point.id === selected ? "active" : ""}`;
       const number = document.createElement("b"); number.textContent = String(point.markerNumber); pin.append(number);
       const icon = L.divIcon({ className: "memory-pin-container", html: pin, iconSize: [36, 44], iconAnchor: [18, 40] });
       const marker = L.marker([point.latitude, point.longitude], { icon, title: point.title, alt: point.title, keyboard: true }).addTo(group);

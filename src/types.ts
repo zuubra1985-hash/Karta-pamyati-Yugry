@@ -22,9 +22,20 @@ export interface ObjectPassport {
   references?: string[];
   webSources?: { title: string; url: string; publisher?: string }[];
 }
+export interface PhotoCredit {
+  photographer?: string;
+  date?: string;
+  source?: string;
+  rights?: string;
+}
+export interface HistoricalContext {
+  coordinateScope: string;
+  phases: {title: string; period: string; description: string; sourceUrl: string; sourceTitle: string}[];
+}
 export interface Place {
   id: string;
   revision?: number;
+  relatedPlaceId?: string;
   appearance?: { accent: "forest" | "river" | "clay"; imagePosition: "center" | "top" | "bottom" };
   title: string;
   location: string;
@@ -39,6 +50,9 @@ export interface Place {
   source: string;
   image: string;
   demo: boolean;
+  photoCredit?: PhotoCredit;
+  afterPhotoCredit?: PhotoCredit;
+  historicalContext?: HistoricalContext;
   mediaId?: string;
   afterMediaId?: string;
   afterImage?: string;
@@ -59,6 +73,7 @@ export interface ResidentMemory {
   period: string;
   summary: string;
   quote?: string;
+  historicalContext?: string;
   source: { title: string; url: string; publisher: string };
 }
 export interface Submission
@@ -66,9 +81,9 @@ export interface Submission
     Place,
     "demo" | "image" | "summary" | "year" | "latitude" | "longitude"
   > {
-  year: number;
-  latitude: number;
-  longitude: number;
+  year: number | null;
+  latitude: number | null;
+  longitude: number | null;
   contact: string;
   status: "pending" | "approved" | "rejected";
   createdAt: string;
@@ -115,12 +130,19 @@ export const afterImageFor = (
 export async function api<T>(url: string, options?: RequestInit): Promise<T> {
   if (typeof options?.body === "string" && new TextEncoder().encode(options.body).byteLength > 4_000_000)
     throw new Error("Материал слишком большой для отправки. Уменьшите общий размер фотографий примерно до 2,8 МБ и повторите попытку.");
-  const response = await fetch(url, {
-    ...options,
-    headers: { "Content-Type": "application/json", ...options?.headers },
-  });
-  const data = await response.json();
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      ...options,
+      headers: { "Content-Type": "application/json", ...options?.headers },
+    });
+  } catch {
+    throw new Error("Не удалось связаться с сайтом. Проверьте соединение и попробуйте снова.");
+  }
+  let data;
+  try { data = await response.json(); }
+  catch { throw new Error("Сервис временно недоступен. Попробуйте позже."); }
   if (!response.ok)
-    throw new Error(data.error || "Не удалось выполнить запрос.");
+    throw new Error(typeof data?.error === "string" ? data.error : "Не удалось выполнить запрос. Попробуйте позже.");
   return data;
 }

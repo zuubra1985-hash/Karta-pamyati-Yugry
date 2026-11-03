@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { useLayoutEffect, useRef, type ReactNode } from "react";
 import { X } from "lucide-react";
 export default function Modal({
   title,
@@ -12,7 +12,7 @@ export default function Modal({
   wide?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
+  useLayoutEffect(() => {
     const dialog = ref.current!;
     const active = document.activeElement as HTMLElement;
     dialog.showModal();
@@ -24,6 +24,13 @@ export default function Modal({
       active?.focus();
     };
   }, []);
+  useLayoutEffect(() => {
+    const dialog = ref.current;
+    if (!dialog) return;
+    dialog.scrollTop = 0;
+    const heading = dialog.querySelector<HTMLElement>("h2, h3");
+    if (heading) { heading.tabIndex = -1; heading.focus({preventScroll: true}); }
+  }, [title]);
   return (
     <dialog
       ref={ref}
@@ -43,13 +50,13 @@ export default function Modal({
         }
       }}
     >
-      <button
+      <div className="modal-controls"><button
         className="icon-button modal-close"
         onClick={onClose}
         aria-label="Закрыть окно"
       >
         <X size={20} />
-      </button>
+      </button></div>
       {children}
     </dialog>
   );

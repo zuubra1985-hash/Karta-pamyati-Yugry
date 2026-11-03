@@ -21,12 +21,16 @@ try {
   await page.locator('.admin-entry').click();
   await page.getByLabel('Email', {exact:true}).fill('admin@example.invalid');
   await page.getByLabel('Пароль', {exact:true}).fill('test-only-password-123');
-  await page.getByRole('button', {name:'Войти в редакцию'}).click();
+  await page.getByRole('button', {name:'Войти в кабинет'}).click();
   await page.getByRole('heading', {name:'Кабинет администратора'}).waitFor();
   await page.locator('.admin-place').first().waitFor();
   assert.equal(await page.locator('.admin-place').count(),36);
   await page.getByLabel('Проверить наполнение').selectOption('gps');
   assert.equal(await page.locator('.admin-place').count(),4);
+  for (const [quality, count] of [['memories',28], ['condition',36], ['protection',36], ['sources',1], ['approximate',32]]) {
+    await page.getByLabel('Проверить наполнение').selectOption(quality);
+    assert.equal(await page.locator('.admin-place').count(),count,quality);
+  }
   await page.getByLabel('Проверить наполнение').selectOption('all');
   await page.getByLabel('Поиск карточек').fill('pas-005');
   assert.equal(await page.locator('.admin-place').count(),1);
@@ -60,13 +64,19 @@ try {
   await page.getByLabel('Координаты объекта', {exact:true}).fill('61.24, 73.4');
   await page.getByLabel('Достоверность координат').selectOption('confirmed');
   await page.getByLabel('Заменить фотографию', {exact:true}).setInputFiles({name:'test.png', mimeType:'image/png', buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jGuUAAAAASUVORK5CYII=', 'base64')});
+  await page.getByLabel('Фотограф', {exact:true}).fill('Тестовый фотограф');
+  await page.getByLabel('Дата съёмки', {exact:true}).fill('1930-е годы');
+  await page.getByLabel('Источник фотографии', {exact:true}).fill('Тестовый архив');
+  await page.getByLabel('Основание использования', {exact:true}).fill('Разрешение автора');
   await page.getByRole('button', {name:'Сохранить',exact:true}).click();
   await page.locator('.place-detail').waitFor();
   assert.equal(await page.locator('.place-detail').getAttribute('data-accent'),'river');
   assert.match(await page.locator('.place-detail').innerText(), /Исправленное хозяйство/);
   assert.match(await page.locator('.detail-image img').getAttribute('src'), /^\/api\/media\//);
+  assert.match(await page.locator('.photo-credits').innerText(), /Тестовый фотограф.*1930-е годы.*Тестовый архив.*Разрешение автора/s);
   await page.reload({waitUntil:'networkidle'});
   assert.equal(await page.locator('.place-detail h2').textContent(),'Новое название Немчиновой');
+  assert.match(await page.locator('.photo-credits').innerText(), /Тестовый фотограф/);
   await page.getByRole('button', {name:'Изменить',exact:true}).click();
   await page.getByLabel('Название', {exact:true}).fill('Несохранённое название');
   await page.getByRole('button', {name:'Отмена',exact:true}).click();

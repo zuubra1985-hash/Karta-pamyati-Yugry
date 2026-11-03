@@ -1,5 +1,8 @@
 import type { Place } from "./types";
 
+declare const __STATIC_CATALOGUE_ALLOWED__: boolean;
+const staticCatalogueAllowed = typeof __STATIC_CATALOGUE_ALLOWED__ === "undefined" ? true : __STATIC_CATALOGUE_ALLOWED__;
+
 export type ArchiveMode = "server" | "catalogue";
 
 function isPlaceList(data: unknown): data is Place[] {
@@ -22,13 +25,14 @@ async function readPlaces(url: string, fetcher: typeof fetch) {
   return places;
 }
 
-export async function loadArchive(fetcher: typeof fetch = fetch): Promise<{
+export async function loadArchive(fetcher: typeof fetch = fetch, allowStatic = staticCatalogueAllowed): Promise<{
   places: Place[];
   mode: ArchiveMode;
 }> {
   try {
     return { places: await readPlaces("/api/places", fetcher), mode: "server" };
   } catch {
+    if (!allowStatic) throw new Error("Архив временно недоступен. Проверьте соединение и попробуйте снова позже.");
     // Static hosts publish the catalogue with the site; no database is required.
     // A valid empty server archive stays empty and never restores deleted records.
     try {

@@ -22,7 +22,7 @@ export default function MemoryMap({ places, selected, onSelect, onFocus }: {
   const [size, setSize] = useState({ width: 800, height: 470 });
   const numbered = useMemo(() => places
     .filter((p): p is Place & Coordinates => hasCoordinates(p))
-    .map((p, i) => ({ ...p, markerNumber: i + 1, approximate: p.coordinateStatus === "hypothesis" })), [places]);
+    .map((p, i) => ({ ...p, markerNumber: i + 1, approximate: p.coordinateStatus !== "confirmed" })), [places]);
   const points = useMemo(() => numbered.filter((p) => includeApproximate || !p.approximate), [numbered, includeApproximate]);
   const focused = points.find((p) => p.id === selected);
   const displayed = searchPoint ? [{ ...searchPoint, id: "coordinate-search", title: "Введённая точка" }] : focused ? [focused] : points;
@@ -76,6 +76,7 @@ export default function MemoryMap({ places, selected, onSelect, onFocus }: {
         <span><MapPin size={14} /> {searchPoint ? "Введённая точка" : focused ? "Выбранное место" : `На карте: ${points.length}`}{!searchPoint && places.length > numbered.length ? ` · без координат: ${places.length - numbered.length}` : ""}</span>
         <a href={yandexMapUrl(displayed, view, false)} target="_blank" rel="noopener noreferrer">Открыть в Яндексе <ArrowUpRight size={14} /></a>
       </div>
+      <p className="map-data-note">Уточнённых точек: {numbered.filter(p => p.coordinateStatus === "confirmed").length} · приблизительных: {numbered.filter(p => p.coordinateStatus !== "confirmed").length} · без координат: {places.length - numbered.length}. Приблизительные точки не подтверждают точное положение исторического поселения.</p>
       {numbered.some((p) => p.approximate) && (
         <label className="map-approximate"><input type="checkbox" checked={includeApproximate} onChange={(e) => {
           setIncludeApproximate(e.target.checked);

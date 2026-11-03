@@ -34,6 +34,8 @@ import EditPlace from "./components/EditPlace";
 import OrganizationDetails from "./components/OrganizationDetails";
 import { organization } from "./organization";
 import Editor from "./components/Editor";
+import { matchesEvent } from "./history";
+import PhotoCredits from "./components/PhotoCredits";
 import Timeline from "./components/Timeline";
 import BeforeAfter from "./components/BeforeAfter";
 import { PassportCard } from "./components/Passport";
@@ -54,7 +56,8 @@ type Route = {
 type Dialog =
   | { type: "place"; place: Place }
   | { type: "route"; route: Route }
-  | { type: "submit" | "editor" }
+  | { type: "submit"; relatedPlace?: Place }
+  | { type: "editor" }
   | null;
 const demoRoutes: Route[] = [
   {
@@ -85,6 +88,36 @@ const demoRoutes: Route[] = [
       "Знакомство с местами через пейзажи и бережный разговор о локальной культуре. Демонстрационная подборка не заменяет подготовку путешествия и разрешения на посещение территорий.",
   },
 ];
+const passportRoutes: Route[] = [
+        {
+          id: "settlements",
+          title: "Исторические слои живых поселений",
+          subtitle: "МЕСТО ПРОДОЛЖАЕТ ЖИТЬ",
+          image: "village",
+          places: ["pas-012", "pas-021", "pas-022", "pas-026", "pas-028", "pas-030"],
+          description:
+            "Песчаный, Юган, Малоюганский, Тром-Аган, Пасол и Банный продолжают историю поселений края. Здесь собраны рассказы об их прошлом и переменах. Это тематическая подборка для чтения.",
+        },
+        {
+          id: "memory",
+          title: "Память обских спецпосёлков",
+          subtitle: "ИСТОРИЯ И ИСТОЧНИКИ",
+          image: "river",
+          places: ["pas-011", "pas-013", "pas-015", "pas-035", "pas-036"],
+          description:
+            "Паспорта поселений, связанных с историей спецпереселения. Местоположения приблизительные; они не предназначены для навигации.",
+        },
+        {
+          id: "names",
+          title: "Старые имена на карте Югры",
+          subtitle: "ТОПОНИМЫ И ПРЕЕМСТВЕННОСТЬ",
+          image: "forest",
+          places: ["pas-003", "pas-005", "pas-009", "pas-024", "pas-033"],
+          description:
+            "Имена старых деревень и исторических городских территорий. В карточках собраны сведения о названиях, людях и переменах этих мест. Подборка не задаёт путь посещения объектов.",
+        },
+      ];
+const storyNoun = (count: number) => ({one:"история", few:"истории", many:"историй", other:"истории", zero:"историй", two:"истории"})[new Intl.PluralRules("ru").select(count)];
 const nav: { id: Page; label: string }[] = [
   { id: "map", label: "Карта мест" },
   { id: "stories", label: "Истории" },
@@ -117,6 +150,8 @@ export default function App() {
   const [admin, setAdmin] = useState(false);
   useEffect(() => { api("/api/admin/session").then(() => setAdmin(true)).catch(() => {}); }, []);
   const [places, setPlaces] = useState<Place[]>([]);
+  const hasCatalogue = places.some((p) => p.catalogue);
+  const routes = useMemo(() => (hasCatalogue ? passportRoutes : demoRoutes).map(route => ({...route, places: route.places.filter(id => places.some(p => p.id === id))})).filter(route => route.places.length > 0), [places, hasCatalogue]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [archiveMode, setArchiveMode] = useState<ArchiveMode | null>(null);
@@ -125,6 +160,7 @@ export default function App() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<Category | "all">("all");
   const [decade, setDecade] = useState("all");
+  const [event, setEvent] = useState("all");
   const [yearRange, setYearRange] = useState<[number, number] | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [menu, setMenu] = useState(false);
@@ -152,6 +188,8 @@ export default function App() {
       setPlaces(archive.places);
     } catch (e) {
       setLoadError((e as Error).message);
+      setPlaces([]);
+      setArchiveMode(null);
     } finally {
       setLoading(false);
     }
@@ -162,8 +200,19 @@ export default function App() {
   useEffect(() => {
     const onHash = () => {
       const hash = window.location.hash.slice(1);
-      if (hash.startsWith("place/")) {
-        setPage("map");
+      if (hash === "main") return;
+      const originPage = window.history.state?.archivePage;
+      if (["map", "stories", "memories", "routes", "about", "favorites"].includes(originPage)) setPage(originPage);
+      if (hash === "add") {
+        setDialog({type: "submit", relatedPlace: places.find(p => p.id === window.history.state?.relatedPlaceId)});
+      } else if (hash === "admin") {
+        setDialog({type: "editor"});
+      } else if (hash.startsWith("route/")) {
+        setPage("routes");
+        const route = routes.find(r => r.id === hash.slice(6));
+        if (route) setDialog({type:"route", route});
+        else if (!loading && !loadError) { setDialog(null); setToast("Эта подборка не найдена."); }
+      } else if (hash.startsWith("place/")) {
         const p = places.find((p) => p.id === hash.slice(6));
         if (p) {
           setDialog({ type: "place", place: p });
@@ -178,8 +227,10 @@ export default function App() {
               }
             })
             .catch(() => {
-              if (window.location.hash.slice(1) === hash)
+              if (window.location.hash.slice(1) === hash) {
+                setDialog(null);
                 setToast("Эта история не найдена или пока не опубликована.");
+              }
             });
         } else if (!loading && archiveMode === "catalogue") {
           setToast("Этот паспорт не найден в опубликованном архиве.");
@@ -190,19 +241,18 @@ export default function App() {
             ? hash
             : "map") as Page,
         );
-        setDialog((current) => (current?.type === "place" ? null : current));
+        setDialog(null);
       }
     };
     onHash();
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
-  }, [places, loading, archiveMode]);
+  }, [places, loading, archiveMode, routes, loadError]);
   useEffect(() => {
     if (!toast) return;
     const timer = window.setTimeout(() => setToast(""), 4500);
     return () => window.clearTimeout(timer);
   }, [toast]);
-  const hasCatalogue = places.some((p) => p.catalogue);
   const filtered = useMemo(() => {
     const query = search.toLocaleLowerCase("ru").replaceAll("ё", "е").trim();
     let result = places.filter((p) => {
@@ -212,6 +262,7 @@ export default function App() {
       return (
         (!query || haystack.includes(query)) &&
         (category === "all" || p.category === category) &&
+        matchesEvent(p, event) &&
         (decade === "all" ||
           (p.year !== null &&
             Math.floor(p.year / 10) * 10 === Number(decade))) &&
@@ -236,6 +287,7 @@ export default function App() {
     category,
     decade,
     yearRange,
+    event,
     sort,
     page,
     favorites,
@@ -253,6 +305,11 @@ export default function App() {
   const memories = useMemo(() => [...new Map(places.flatMap((p) => (p.memories || []).map((memory) => [memory.id, memory] as const))).values()], [places]);
   const placeTitles = useMemo(() => new Map(places.map((p) => [p.id, p.title])), [places]);
   const filteredMemories = useMemo(() => memories.filter((memory) => `${memory.narrator} ${memory.title} ${memory.summary} ${memory.placeIds.map((id) => placeTitles.get(id) || "").join(" ")}`.toLocaleLowerCase("ru").replaceAll("ё", "е").includes(search.toLocaleLowerCase("ru").replaceAll("ё", "е").trim())), [memories, placeTitles, search]);
+  const contributedMemories = useMemo(() => places.filter(p => !p.demo && !p.catalogue), [places]);
+  const filteredContributions = useMemo(() => {
+    const query = search.toLocaleLowerCase("ru").replaceAll("ё", "е").trim();
+    return contributedMemories.filter(p => `${p.title} ${p.location} ${p.author} ${p.story}`.toLocaleLowerCase("ru").replaceAll("ё", "е").includes(query));
+  }, [contributedMemories, search]);
   const mapNumbers = useMemo(() => new Map(filtered.filter((p) => hasCoordinates(p)).map((p, i) => [p.id, i + 1])), [filtered]);
   function navigate(next: Page) {
     window.location.hash = next;
@@ -263,6 +320,7 @@ export default function App() {
     setCategory("all");
     setDecade("all");
     setYearRange(null);
+    setEvent("all");
     setOnlyReal(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -279,10 +337,17 @@ export default function App() {
       );
     }
   }
+  function openDialog(next: Exclude<Dialog, null>) {
+    const hash = next.type === "place" ? `#place/${next.place.id}` : next.type === "route" ? `#route/${next.route.id}` : next.type === "submit" ? "#add" : "#admin";
+    if (window.location.hash !== hash) window.history.pushState({
+      archivePage: page, fromArchive: true, returnHash: window.location.hash,
+      relatedPlaceId: next.type === "submit" ? next.relatedPlace?.id : undefined,
+    }, "", hash);
+    setDialog(next);
+  }
   function openPlace(place: Place) {
     setSelected(place.id);
-    setDialog({ type: "place", place });
-    window.history.replaceState(null, "", `#place/${place.id}`);
+    openDialog({type:"place", place});
   }
   function showOnMap(place: Place) {
     setPage("map");
@@ -294,14 +359,15 @@ export default function App() {
   }
   function closeDialog() {
     setDialog(null);
-    if (window.location.hash.startsWith("#place/"))
-      window.history.replaceState(null, "", `#${page}`);
+    if (window.history.state?.fromArchive) window.history.back();
+    else window.history.replaceState(null, "", `#${page}`);
   }
   function resetFilters() {
     setSearch("");
     setCategory("all");
     setDecade("all");
     setYearRange(null);
+    setEvent("all");
     setOnlyReal(false);
   }
   function explore() {
@@ -309,41 +375,14 @@ export default function App() {
       .getElementById("explore")
       ?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
-  const routes: Route[] = hasCatalogue
-    ? [
-        {
-          id: "settlements",
-          title: "Исторические слои живых поселений",
-          subtitle: "МЕСТО ПРОДОЛЖАЕТ ЖИТЬ",
-          image: "village",
-          places: ["pas-012", "pas-021", "pas-022", "pas-026", "pas-028", "pas-030"],
-          description:
-            "Песчаный, Юган, Малоюганский, Тром-Аган, Пасол и Банный продолжают историю поселений края. Здесь собраны рассказы об их прошлом и переменах. Это тематическая подборка для чтения.",
-        },
-        {
-          id: "memory",
-          title: "Память обских спецпосёлков",
-          subtitle: "ИСТОРИЯ И ИСТОЧНИКИ",
-          image: "river",
-          places: ["pas-011", "pas-013", "pas-015", "pas-035", "pas-036"],
-          description:
-            "Паспорта поселений, связанных с историей спецпереселения. Координаты — гипотезы, не навигационные точки.",
-        },
-        {
-          id: "names",
-          title: "Старые имена на карте Югры",
-          subtitle: "ТОПОНИМЫ И ПРЕЕМСТВЕННОСТЬ",
-          image: "forest",
-          places: ["pas-003", "pas-005", "pas-009", "pas-024", "pas-033"],
-          description:
-            "Имена старых деревень и исторических городских территорий. В карточках сохранены сведения исправленного свода. Подборка не задаёт путь посещения объектов.",
-        },
-      ]
-    : demoRoutes;
+  useEffect(() => {
+    const title = dialog?.type === "place" ? dialog.place.title : dialog?.type === "route" ? dialog.route.title : dialog?.type === "submit" ? "Добавить воспоминание" : dialog?.type === "editor" ? "Кабинет администратора" : page === "favorites" ? "Избранное" : nav.find(item => item.id === page)?.label;
+    document.title = `${title || "Архив"} — Карта памяти Югры`;
+  }, [page, dialog]);
   const isArchive = ["map", "stories", "favorites"].includes(page);
   return (
     <>
-      <a className="skip-link" href="#main">
+      <a className="skip-link" href="#main" onClick={e => {e.preventDefault(); document.getElementById("main")?.focus(); document.getElementById("main")?.scrollIntoView();}}>
         Перейти к содержимому
       </a>
       <header className="site-header">
@@ -372,6 +411,7 @@ export default function App() {
               <a
                 href={`#${n.id}`}
                 className={page === n.id ? "active" : ""}
+                aria-current={page === n.id ? "page" : undefined}
                 key={n.id}
                 onClick={(e) => {
                   e.preventDefault();
@@ -383,7 +423,7 @@ export default function App() {
             ))}
           </nav>
           <div className="header-actions">
-            <button className="button secondary admin-entry" onClick={() => setDialog({type: "editor"})}><ShieldCheck size={17}/><span>{admin ? "Администратор" : "Вход администратора"}</span></button>
+            <button className="button secondary admin-entry" title={admin ? "Кабинет администратора" : "Вход администратора"} onClick={() => openDialog({type: "editor"})}><ShieldCheck size={17}/><span>{admin ? "Администратор" : "Вход администратора"}</span></button>
             <button
               className={`icon-button favorites-toggle ${page === "favorites" ? "is-saved" : ""}`}
               onClick={() => navigate("favorites")}
@@ -394,10 +434,11 @@ export default function App() {
             </button>
             <button
               className="button primary add-top"
-              onClick={() => setDialog({ type: "submit" })}
+              title="Добавить воспоминание"
+              onClick={() => openDialog({ type: "submit" })}
             >
               <Plus size={17} />
-              <span>Добавить историю</span>
+              <span>Добавить воспоминание</span>
             </button>
             <button
               className="icon-button mobile-menu"
@@ -410,7 +451,7 @@ export default function App() {
           </div>
         </div>
       </header>
-      <main id="main">
+      <main id="main" tabIndex={-1}>
         {page === "map" && (
           <section className="hero container">
             <div className="hero-text">
@@ -493,18 +534,18 @@ export default function App() {
                 : page === "favorites"
                   ? "Места, которые дороги."
                   : page === "routes"
-                    ? "У каждой дороги — история."
+                    ? "Истории, объединённые темой."
                     : "Сохраним память. Вместе."}
             </h1>
             <p>
               {page === "stories"
                 ? "Небольшие рассказы складываются в большую историю нашего края."
                 : page === "memories"
-                  ? "Личные воспоминания жителей: фрагменты и краткие пересказы опубликованных свидетельств."
+                  ? "Личные воспоминания жителей: опубликованные свидетельства и рассказы участников проекта."
                 : page === "favorites"
                   ? "Ваш личный список мест. Сохраняется в этом браузере на этом устройстве."
                   : page === "routes"
-                    ? "Тематические путешествия по живому архиву Югры."
+                    ? "Тематические подборки историй о местах Югры."
                     : "Живой архив мест, людей и воспоминаний о Югре."}
             </p>
           </section>
@@ -598,6 +639,8 @@ export default function App() {
             </div>
             <Timeline
               places={places}
+              event={event}
+              onEventChange={next => { setEvent(next); setDecade("all"); setYearRange(null); }}
               value={
                 yearRange ||
                 (decade !== "all" ? [Number(decade), Number(decade) + 9] : null)
@@ -620,8 +663,7 @@ export default function App() {
                       {places.filter((p) => p.catalogue).length} историй
                       поселений Югры.
                     </strong>{" "}
-                    Часть местоположений указана приблизительно.
-                    Изображения — иллюстрации.
+                    Для точек указана достоверность местоположения. Фотографии и иллюстрации подписаны отдельно.
                   </>
                 ) : (
                   <>
@@ -631,7 +673,7 @@ export default function App() {
                   </>
                 )}
               </p>
-              <button onClick={() => setDialog({ type: "submit" })}>
+              <button onClick={() => openDialog({ type: "submit" })}>
                 Добавить свою <ArrowRight size={14} />
               </button>
             </div>}
@@ -774,7 +816,7 @@ export default function App() {
                 </span>
                 <button
                   className="text-button"
-                  onClick={() => setDialog({ type: "submit" })}
+                  onClick={() => openDialog({ type: "submit" })}
                 >
                   Расскажите о нём <ArrowRight size={16} />
                 </button>
@@ -782,7 +824,7 @@ export default function App() {
             )}
           </section>
         )}
-        {page === "map" && (
+        {page === "map" && !loading && !loadError && places.length > 0 && (
           <section className="featured container">
             <div className="section-top">
               <div>
@@ -809,32 +851,35 @@ export default function App() {
             </div>
           </section>
         )}
-        {page === "memories" && (
+        {(page === "memories" || page === "routes") && (loading || loadError) && <section className="container"><div className={loadError ? "empty error" : "loading"} role={loadError ? "alert" : "status"}>{loadError ? <><h2>Не удалось загрузить архив</h2><p>{loadError}</p><button className="button secondary" onClick={load}>Попробовать снова</button></> : "Загружаем архив…"}</div></section>}
+        {page === "memories" && !loading && !loadError && (
           <section className="container memoir-page">
             <label className="search-field"><Search size={19} /><input aria-label="Поиск по воспоминаниям" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Рассказчик, поселение или слово из воспоминания…" /></label>
-            {filteredMemories.length ? <ResidentMemories
+            {filteredMemories.length > 0 && <ResidentMemories
               memories={filteredMemories}
               placeTitles={placeTitles}
               onPlace={(id) => { const place = places.find((p) => p.id === id); if (place) openPlace(place); }}
-            /> : <div className="empty"><h3>{memories.length ? "Воспоминания не найдены" : "Воспоминания ещё не добавлены"}</h3><p>{memories.length ? "Попробуйте другое имя или название поселения." : "В этом архиве пока нет опубликованных личных свидетельств."}</p></div>}
+            />}
+            {filteredContributions.length > 0 && <section className="contributor-memories" aria-label="Воспоминания участников"><h2>Воспоминания участников</h2><div className="story-grid">{filteredContributions.map(p => <StoryCard key={p.id} place={p} saved={favorites.includes(p.id)} onFavorite={() => toggleFavorite(p.id)} onOpen={() => openPlace(p)}/>)}</div></section>}
+            {!filteredMemories.length && !filteredContributions.length && <div className="empty"><h3>{memories.length || contributedMemories.length ? "Воспоминания не найдены" : "Воспоминания ещё не добавлены"}</h3><p>{memories.length || contributedMemories.length ? "Попробуйте другое имя или название поселения." : "В этом архиве пока нет опубликованных личных свидетельств."}</p></div>}
           </section>
         )}
-        {page === "routes" && (
+        {page === "routes" && !loading && !loadError && (
           <section className="container routes-section">
             <div className="demo-notice">
               <Compass size={18} />
               <p>
                 Цифровые маршруты объединяют истории по теме. Это подборки для
-                чтения, а не навигационные треки. Стартовые материалы
-                демонстрационные.
+                чтения; они не задают путь для поездки. {hasCatalogue ? "Местоположения указаны приблизительно." : "Материалы этих подборок — демонстрационные примеры."}
               </p>
             </div>
+            {routes.length === 0 && <div className="empty"><h3>Подборки пока не добавлены</h3><p>Здесь появятся тематические подборки опубликованных историй.</p></div>}
             <div className="story-grid route-grid">
               {routes.map((r, i) => (
                 <button
                   className="route-card"
                   key={r.id}
-                  onClick={() => setDialog({ type: "route", route: r })}
+                  onClick={() => openDialog({ type: "route", route: r })}
                 >
                   <img
                     src={`/images/${r.image}.svg`}
@@ -845,7 +890,7 @@ export default function App() {
                     <h2>{r.title}</h2>
                     <div>
                       <span>
-                        0{i + 1} / {r.places.length} истории
+                        0{i + 1} / {r.places.length} {storyNoun(r.places.length)}
                       </span>
                       <ArrowUpRight size={23} />
                     </div>
@@ -927,7 +972,7 @@ export default function App() {
               <p><strong>Благодаря вашим историям мы сможем увидеть Север таким, каким он был на самом деле.</strong> Не только через архивные документы и официальные даты, но и глазами людей, которые здесь жили, любили, трудились и оставили свой след.</p>
               <h3>История Севера складывается из наших воспоминаний.</h3>
               <p><strong>Поделитесь своей историей. Сохраним прошлое для будущих поколений.</strong></p>
-              <button className="button primary" onClick={() => setDialog({ type: "submit" })}><Plus size={17} />Добавить воспоминание</button>
+              <button className="button primary" onClick={() => openDialog({ type: "submit" })}><Plus size={17} />Добавить воспоминание</button>
               <details className="materials-terms">
                 <summary>Условия публикации и обработки материалов</summary>
               <p>
@@ -968,7 +1013,7 @@ export default function App() {
             </div>
             <button
               className="button light"
-              onClick={() => setDialog({ type: "submit" })}
+              onClick={() => openDialog({ type: "submit" })}
             >
               Добавить воспоминание <Plus size={18} />
             </button>
@@ -996,18 +1041,19 @@ export default function App() {
                 ? dialog.route.title
                 : dialog.type === "submit"
                   ? "Добавить воспоминание"
-                  : "Кабинет редактора"
+                  : "Кабинет администратора"
           }
           onClose={closeDialog}
         >
+          {window.history.state?.returnHash?.startsWith("#route/") && dialog.type === "place" && <button className="dialog-back text-button" onClick={closeDialog}>← Вернуться к подборке</button>}
+          {window.history.state?.returnHash?.startsWith("#place/") && dialog.type === "submit" && <button className="dialog-back text-button" onClick={closeDialog}>← Вернуться к карточке</button>}
           {(dialog.type === "submit" || dialog.type === "editor") &&
             archiveMode !== "server" && (
             <div className="editor-login">
               <span className="eyebrow">КАРТА ПАМЯТИ ЮГРЫ</span>
-              <h2>{loading ? "Открываем архив…" : "Архив открыт для чтения"}</h2>
+              <h2>{loading ? "Открываем архив…" : archiveMode === "catalogue" ? "Архив открыт для чтения" : "Сервис временно недоступен"}</h2>
               <p>
-                Паспорта, поиск и избранное доступны. Приём новых материалов и
-                кабинет редактора пока недоступны на этом сайте.
+                {archiveMode === "catalogue" ? "Паспорта, поиск и избранное доступны. Приём новых материалов и кабинет редактора пока недоступны на этом сайте." : "Не удалось подключиться к архиву. Закройте окно и повторите загрузку страницы позже."}
               </p>
               <button className="button primary" onClick={closeDialog}>
                 Вернуться к архиву
@@ -1015,7 +1061,7 @@ export default function App() {
             </div>
           )}
           {dialog.type === "submit" && archiveMode === "server" && (
-            <SubmissionForm onClose={closeDialog} />
+            <SubmissionForm key={dialog.relatedPlace?.id || "new-memory"} onClose={closeDialog} relatedPlace={dialog.relatedPlace} />
           )}
           {dialog.type === "editor" && archiveMode === "server" && (
             <Editor
@@ -1031,10 +1077,13 @@ export default function App() {
               canEdit={admin && archiveMode === "server"}
               onSaved={(saved) => { setPlaces(items => items.map(p => p.id === saved.id ? saved : p)); setDialog({type: "place", place: saved}); setToast("Изменения сохранены."); }}
               place={dialog.place}
+              relatedPlace={places.find(p => p.id === dialog.place.relatedPlaceId)}
+              additions={places.filter(p => p.relatedPlaceId === dialog.place.id)}
+              onRelated={openPlace}
               saved={favorites.includes(dialog.place.id)}
               onFavorite={() => toggleFavorite(dialog.place.id)}
               onShare={() => setToast("Ссылка на историю скопирована.")}
-              onContribute={() => setDialog({ type: "submit" })}
+              onContribute={() => openDialog({ type: "submit", relatedPlace: dialog.place })}
               onMap={() => showOnMap(dialog.place)}
             />
           )}
@@ -1167,6 +1216,7 @@ function StoryCard({
 }
 function PlaceDetail({
   canEdit, onSaved,
+  relatedPlace, additions, onRelated,
   place,
   saved,
   onFavorite,
@@ -1175,6 +1225,9 @@ function PlaceDetail({
   onMap,
 }: {
   canEdit: boolean;
+  relatedPlace?: Place;
+  additions: Place[];
+  onRelated: (place: Place) => void;
   onSaved: (p: Place) => void;
   place: Place;
   saved: boolean;
@@ -1210,12 +1263,13 @@ function PlaceDetail({
           }
         />
         <span className="image-badge">
-          {p.mediaId ? "ФОТОГРАФИЯ УЧАСТНИКА" : "АВТОРСКАЯ ИЛЛЮСТРАЦИЯ"}
+          {p.mediaId ? "ЗАГРУЖЕННАЯ ФОТОГРАФИЯ" : "АВТОРСКАЯ ИЛЛЮСТРАЦИЯ"}
         </span>
       </div>
       <div className="detail-body">
         <span className="eyebrow">{categoryLabel(p.category)}</span>
         <h2>{p.title}</h2>
+        {relatedPlace && <p className="related-place">Дополнение к карточке <button className="text-button" onClick={() => onRelated(relatedPlace)}>{relatedPlace.title} <ArrowRight size={14}/></button></p>}
         <div className="detail-meta">
           <span>
             <MapPin size={15} />
@@ -1223,10 +1277,11 @@ function PlaceDetail({
           </span>
           <span>{dateFor(p)}</span>
         </div>
+        <p className="location-certainty">{!hasCoordinates(p) ? "Координаты неизвестны. Это место пока не отмечено на карте." : p.coordinateStatus === "confirmed" ? "Местоположение отмечено редакцией как уточнённое. Основание — в паспорте." : "Приблизительное местоположение. Точная GPS-привязка не подтверждена; не используйте точку для навигации."}{p.historicalContext && ` ${p.historicalContext.coordinateScope}`}</p>
         {hasCoordinates(p) && (
           <div className="place-location-links">
             <button className="button secondary" onClick={onMap}><MapPin size={15} /> Показать на карте</button>
-            <a href={yandexMapUrl([{ ...p, approximate: p.coordinateStatus === "hypothesis" }], { ...p, zoom: 13 }, false)} target="_blank" rel="noopener noreferrer">Яндекс Карты <ArrowUpRight size={14} /></a>
+            <a href={yandexMapUrl([{ ...p, approximate: p.coordinateStatus !== "confirmed" }], { ...p, zoom: 13 }, false)} target="_blank" rel="noopener noreferrer">Яндекс Карты <ArrowUpRight size={14} /></a>
             <a href={googleMapUrl(p)} target="_blank" rel="noopener noreferrer">Google Maps <ArrowUpRight size={14} /></a>
           </div>
         )}
@@ -1244,7 +1299,10 @@ function PlaceDetail({
             <p key={i}>{paragraph}</p>
           ))}
         </div>
-        <ResidentMemories memories={p.memories || []} />
+        {p.historicalContext && <section className="historical-phases" aria-label="Исторические и современные поселения"><h3>Исторические и современные поселения</h3>{p.historicalContext.phases.map(phase => <article key={phase.title}><h4>{phase.title}</h4><strong>{phase.period}</strong><p>{phase.description}</p><a href={phase.sourceUrl} target="_blank" rel="noopener noreferrer">{phase.sourceTitle} <ArrowUpRight size={14}/></a></article>)}</section>}
+        {(p.memories || []).length ? <ResidentMemories memories={p.memories || []} /> : additions.length === 0 ? <section className="resident-memories"><h3>Воспоминания жителей</h3><p>Воспоминания об этом поселении пока не добавлены.</p><button className="text-button" onClick={onContribute}>Поделиться воспоминанием <ArrowRight size={14}/></button></section> : null}
+        {additions.length > 0 && <section className="related-stories"><h3>Истории участников об этом месте</h3>{additions.map(item => <button key={item.id} className="text-button" onClick={() => onRelated(item)}>{item.title} <ArrowRight size={14}/></button>)}</section>}
+        {p.mediaId && <PhotoCredits credit={p.photoCredit}/>}
         <PassportCard passport={p.passport} />
         <BeforeAfter key={p.id} place={p} />
         <div className="source-box">
@@ -1255,7 +1313,7 @@ function PlaceDetail({
             <p>{p.source}</p>
             <small>
               {p.latitude !== null && p.longitude !== null
-                ? `${p.coordinateStatus === "hypothesis" ? "Примерное местоположение" : "Координаты"}: ${p.latitude.toFixed(5)}, ${p.longitude.toFixed(5)}`
+                ? `${p.coordinateStatus === "confirmed" ? "Координаты" : "Примерное местоположение"}: ${p.latitude.toFixed(5)}, ${p.longitude.toFixed(5)}`
                 : "Местоположение не установлено"}{" "}
               · не для навигации
             </small>

@@ -1,11 +1,19 @@
-import { useState, type FormEvent } from "react";
+import { useLayoutEffect, useRef, useState, type FormEvent } from "react";
 import { api, categories, imageFor, type Place, type Photo } from "../types";
 import { PassportFields, readPassport } from "./Passport";
 import CoordinatesFields from "./CoordinatesFields";
 import { readCoordinates } from "../maps";
+import { eventKinds } from "../history";
+import { PhotoCreditFields, readPhotoCredit } from "./PhotoCredits";
 import PhotoUpload from "./PhotoUpload";
 
 export default function EditPlace({place, onSaved, onCancel}: {place: Place; onSaved: (p: Place) => void; onCancel: () => void}) {
+  const form = useRef<HTMLFormElement>(null);
+  useLayoutEffect(() => {
+    form.current?.closest("dialog")?.scrollTo({top:0});
+    const heading = form.current?.querySelector<HTMLElement>("h2");
+    if (heading) {heading.tabIndex=-1;heading.focus({preventScroll:true});}
+  }, []);
   const [busy, setBusy] = useState(false), [reading, setReading] = useState(false), [error, setError] = useState("");
   const [photo, setPhoto] = useState<Photo | null>(null), [removePhoto, setRemovePhoto] = useState(false);
   const [unknown, setUnknown] = useState(place.latitude === null || place.longitude === null);
@@ -30,22 +38,24 @@ export default function EditPlace({place, onSaved, onCancel}: {place: Place; onS
         summary: values.summary, story: values.story, author: values.author, source: values.source,
         ...unknown ? {latitude: null, longitude: null} : readCoordinates(values),
         coordinateStatus: unknown ? "unknown" : values.coordinateStatus,
+        photoCredit: readPhotoCredit(values),
+        afterPhotoCredit: place.afterMediaId ? readPhotoCredit(values, "afterPhotoCredit") : undefined,
         passport, appearance: {accent: values.accent, imagePosition: values.imagePosition},
         photo: photo ? {data: photo.data, type: photo.type} : removePhoto ? null : undefined,
         revision: place.revision || 0,
-        afterYear: place.afterYear, afterSource: place.afterSource,
+        afterYear: place.afterMediaId ? Number(values.afterYear) : place.afterYear, afterSource: place.afterMediaId ? values.afterSource : place.afterSource,
       })});
       onSaved(saved);
     } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
-  return <form className="edit-submission place-edit" onSubmit={save}>
+  return <form ref={form} className="edit-submission place-edit" onSubmit={save}>
     <h2 className="full">Изменить карточку</h2>
     <p className="full edit-notice">Изменения появятся на сайте после сохранения. Предыдущая версия останется в истории архива.</p>
     <label>Название<input name="title" defaultValue={place.title} required minLength={5} maxLength={150}/></label>
     <label>Населённый пункт<input name="location" defaultValue={place.location} required minLength={2} maxLength={100}/></label>
     <label>Тема<select name="category" defaultValue={place.category}>{categories.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}</select></label>
-    <label>Год (если известен)<input name="year" type="number" min={1500} max={new Date().getFullYear()} defaultValue={place.year ?? ""}/></label>
-    <label>Уточнение датировки<input name="dateLabel" defaultValue={place.dateLabel || ""} maxLength={150}/></label>
+    <label>Год события (если известен)<input name="year" type="number" min={1500} max={new Date().getFullYear()} defaultValue={place.year ?? ""}/></label>
+    <label>Тип события<input name="dateLabel" list="event-kinds" defaultValue={place.dateLabel || ""} maxLength={150}/><datalist id="event-kinds">{eventKinds.map(kind => <option key={kind} value={kind}/>)}</datalist></label>
     <label>Автор<input name="author" defaultValue={place.author} required minLength={2} maxLength={100}/></label>
     <label className="full">Краткое описание<textarea name="summary" defaultValue={place.summary} required minLength={3} maxLength={1000}/></label>
     <label className="full">Текст карточки<textarea aria-label="Текст карточки" name="story" rows={10} defaultValue={place.story} required minLength={80} maxLength={15000}/></label>
@@ -65,6 +75,8 @@ export default function EditPlace({place, onSaved, onCancel}: {place: Place; onS
       <label>Цвет карточки<select name="accent" defaultValue={place.appearance?.accent || "forest"}><option value="forest">Лесной зелёный</option><option value="river">Речной синий</option><option value="clay">Терракотовый</option></select></label>
       <label>Положение изображения<select name="imagePosition" defaultValue={place.appearance?.imagePosition || "center"}><option value="center">По центру</option><option value="top">Верхняя часть</option><option value="bottom">Нижняя часть</option></select></label>
     </fieldset>
+    {!removePhoto && (place.mediaId || photo) && <PhotoCreditFields key={photo?.data || place.mediaId} initial={photo ? undefined : place.photoCredit}/>}
+    {place.afterMediaId && <><label>Год второго снимка<input name="afterYear" type="number" min={1500} max={new Date().getFullYear()} defaultValue={place.afterYear} required/></label><label>Источник второго снимка<textarea name="afterSource" defaultValue={place.afterSource} minLength={3} maxLength={1000} required/></label><PhotoCreditFields second prefix="afterPhotoCredit" initial={place.afterPhotoCredit} title="Описание и права на второй снимок"/></>}
     {error && <div role="alert" className="error full">{error}</div>}
     <div className="review-actions full"><button type="button" className="button secondary" disabled={busy} onClick={onCancel}>Отмена</button><button className="button primary" disabled={busy || reading}>{busy ? "Сохраняем…" : "Сохранить"}</button></div>
   </form>;

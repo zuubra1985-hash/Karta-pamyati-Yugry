@@ -116,10 +116,12 @@ export function createApp(store, { production = false, origin, trustProxy = fals
       return res.status(400).json({
         error:
           parsed.error.issues.find((i) => i.code === "custom")?.message ||
-          "Проверьте поля: рассказ от 80 символов, год от 1500 до текущего, координаты в пределах Югры и согласие на публикацию.",
+          "Проверьте название, рассказ (от 80 символов), источник и согласие. Если указаны год и координаты, проверьте их значения.",
         fields: parsed.error.issues.map((i) => i.path.join(".")),
       });
     const { photo, afterPhoto, ...data } = parsed.data;
+    if (data.relatedPlaceId && !await store.place(data.relatedPlaceId))
+      return res.status(400).json({error: "Связанная карточка не найдена. Обновите архив перед отправкой."});
     let image, afterImage;
     try {
       image = decodePhoto(photo);
@@ -218,13 +220,12 @@ export function createApp(store, { production = false, origin, trustProxy = fals
     if (
       current.afterMediaId
         ? !updates.afterSource ||
-          updates.afterYear === undefined ||
-          updates.afterYear < updates.year
+          updates.afterYear === undefined
         : updates.afterYear !== undefined || updates.afterSource !== undefined
     )
       return res.status(400).json({
         error:
-          "Для пары снимков укажите источник и год второго снимка не раньше первого. Без пары эти поля не используются.",
+          "Для пары снимков укажите источник и год второго снимка. Без пары эти поля не используются.",
       });
     const updated = await store.revise(
       req.params.id,

@@ -22,6 +22,7 @@ test('published passports: authenticated edits, photo lifecycle, conflicts, vali
     summary: 'Новое краткое описание', story: 'Уточнённый исторический текст. '.repeat(8),
     author: original.author, source: original.source, passport: {...original.passport, economy: 'Уточнённые сведения о хозяйстве'},
     appearance: {accent: 'river', imagePosition: 'top'}, revision: 0,
+    photoCredit: {photographer:'Тестовый фотограф', date:'1950-е', source:'Архив фотографа', rights:'Разрешение правообладателя'},
     photo: {type: 'image/png', data: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jGuUAAAAASUVORK5CYII='},
   };
   const patch = (data, auth = true, headers = {}) => fetch(`${base}/api/admin/places/pas-005`, {method:'PATCH', headers:{'Content-Type':'application/json', ...(auth ? {cookie} : {}), ...headers}, body:JSON.stringify(data)});
@@ -42,6 +43,7 @@ test('published passports: authenticated edits, photo lifecycle, conflicts, vali
     assert.equal(history[0].after.title, body.title);
     assert.deepEqual(await (await fetch(`${base}/api/admin/place-edits`, {headers:{cookie}})).json(), history);
     assert.equal((await fetch(`${base}/api/admin/places/missing/history`, {headers:{cookie}})).status, 404);
+    assert.deepEqual(saved.photoCredit, body.photoCredit);
     assert.equal(saved.revision, 1); assert.equal(saved.passport.economy, body.passport.economy);
     assert.deepEqual(saved.passport.webSources, original.passport.webSources);
     assert.equal((await fetch(`${base}/api/media/${saved.mediaId}`)).status, 200);
@@ -49,6 +51,7 @@ test('published passports: authenticated edits, photo lifecycle, conflicts, vali
     assert.equal(store.db.prepare('SELECT count(*) AS n FROM place_edits').get().n, 1);
     const second = await patch({...body, revision:1, photo:null, latitude:61.24, longitude:73.4, coordinateStatus:'confirmed'});
     assert.equal(second.status, 200);
+    assert.equal((await second.json()).photoCredit, undefined);
     assert.equal((await fetch(`${base}/api/media/${saved.mediaId}`)).status, 404);
     assert.equal(store.db.prepare('SELECT before_data FROM place_edits WHERE revision=1').get().before_data, JSON.stringify(original));
     store.close(); store = new Store(file);

@@ -32,7 +32,7 @@ test('cloud backend: persistence across instances, private blobs, moderation, re
   assert.equal((await request(`/api/admin/submissions/${id}`,'POST',{action:'approve',revision:1},cookie)).status,200);
   const published=await (await request(`/api/places/${id}`)).json();assert.equal(published.contact,undefined);assert.equal(published.consent,undefined);
   assert.equal((await request(`/api/media/${current.mediaId}`)).status,200);
-  const patch={...edit,title:'Изменённая история в Turso',summary:'Проверка сохранения',dateLabel:'',coordinateStatus:'confirmed',passport:null,appearance:{accent:'river',imagePosition:'top'},revision:0,photo:png};
+  const patch={...edit,title:'Изменённая история в Turso',summary:'Проверка сохранения',dateLabel:'',coordinateStatus:'confirmed',passport:null,appearance:{accent:'river',imagePosition:'top'},revision:0,photo:png,photoCredit:{photographer:'Фотограф',source:'Архив',rights:'CC BY 4.0'}};
   assert.equal((await request(`/api/admin/places/${id}`,'PATCH',patch,cookie)).status,200);
   const count=files.size;assert.equal((await request(`/api/admin/places/${id}`,'PATCH',patch,cookie)).status,409);assert.equal(files.size,count);
   const other=await CloudStore.open({client:createClient({url}),blobs});
@@ -43,7 +43,8 @@ test('cloud backend: persistence across instances, private blobs, moderation, re
   await new Promise(r=>server.close(r));server=null;store.close();store=await CloudStore.open({client:createClient({url}),blobs});await start();
   assert.equal((await request('/api/admin/session','GET',undefined,cookie)).status,200);
   assert.equal((await (await request(`/api/admin/places/${id}/history`,'GET',undefined,cookie)).json()).length,1);
-  assert.equal((await (await request(`/api/places/${id}`)).json()).title,patch.title);
+  const restored = await (await request(`/api/places/${id}`)).json();
+  assert.equal(restored.title,patch.title); assert.deepEqual(restored.photoCredit,patch.photoCredit);
   await request('/api/admin/logout','POST',{},cookie);assert.equal((await request('/api/admin/session','GET',undefined,cookie)).status,401);
  }finally{if(server)await new Promise(r=>server.close(r));store.close();rmSync(dir,{recursive:true,force:true});}
 });

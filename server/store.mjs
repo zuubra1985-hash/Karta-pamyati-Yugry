@@ -212,6 +212,7 @@ export class Store {
       const current = this.place(id);
       if (!current || (current.revision || 0) !== revision) return null;
       const after = { ...current, ...updates, revision: revision + 1 };
+      if (photo !== undefined) after.photoCredit = photo === null ? undefined : (updates.photoCredit || {});
       if (photo === null) delete after.mediaId;
       else if (photo) {
         after.mediaId = randomUUID();
@@ -328,6 +329,7 @@ export class Store {
         const { contact, consent, ...data } = JSON.parse(row.data);
         const place = {
           ...data,
+          dateLabel: "Воспоминание",
           id,
           demo: false,
           summary:

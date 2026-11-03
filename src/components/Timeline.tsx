@@ -1,24 +1,31 @@
 import { History, RotateCcw } from "lucide-react";
+import { eventFor } from "../history";
 import type { Place } from "../types";
 export default function Timeline({
   places,
+  event,
+  onEventChange,
   value,
   onChange,
   onReset,
 }: {
   places: Place[];
+  event: string;
+  onEventChange: (event: string) => void;
   value: [number, number] | null;
   onChange: (value: [number, number]) => void;
   onReset: () => void;
 }) {
-  const dated = places.filter(
+  const selectedPlaces = places.filter(p => event === "all" || eventFor(p) === event);
+  const eventLabels = [...new Set(places.map(eventFor))].sort((a,b) => a.localeCompare(b, "ru"));
+  const dated = selectedPlaces.filter(
     (p): p is Place & { year: number } => p.year !== null,
   );
   const max = new Date().getFullYear();
   const min = Math.min(
     max - 1,
-    dated.length
-      ? Math.floor(Math.min(...dated.map((p) => p.year)) / 10) * 10
+    places.some(p => p.year !== null)
+      ? Math.floor(Math.min(...places.flatMap(p => p.year === null ? [] : [p.year])) / 10) * 10
       : 1950,
   );
   const from = Math.max(min, value?.[0] ?? min),
@@ -40,8 +47,8 @@ export default function Timeline({
       <div className="timeline-heading">
         <div>
           <History size={18} />
-          <strong>Память сквозь время</strong>
-          <span>Выберите годы историй</span>
+          <strong>События по годам</strong>
+          <span>Год указанного в карточке события</span>
         </div>
         <button
           type="button"
@@ -53,19 +60,20 @@ export default function Timeline({
           Все годы
         </button>
       </div>
+      <label className="timeline-event">Тип события<select aria-label="Тип события" value={event} onChange={e => onEventChange(e.target.value)}><option value="all">Все типы событий</option>{eventLabels.map(label => <option key={label} value={label}>{label}</option>)}</select></label>
       <div
         className="timeline-histogram"
         role="img"
-        aria-label="Распределение всех историй архива по десятилетиям"
+        aria-label={`Количество карточек по десятилетиям: ${event === "all" ? "все типы событий" : event}`}
       >
         {buckets.map((b, index) => (
           <div
             key={b.year}
             className={b.year <= to && b.year + 9 >= from ? "within-range" : ""}
-            title={`${b.year}-е: ${b.count}`}
+            title={`${b.year}-е: ${b.count} карточек. ${[...new Set(dated.filter(p => p.year >= b.year && p.year < b.year + 10).map(eventFor))].join(", ")}`}
           >
             <span
-              style={{ height: `${Math.max(3, (b.count / highest) * 32)}px` }}
+              style={{ height: `${b.count ? Math.max(3, (b.count / highest) * 32) : 0}px` }}
             />
             <small>
               {index === 0 ||
@@ -108,10 +116,9 @@ export default function Timeline({
         </label>
       </div>
       <p className="timeline-note">
-        Без точного года: {places.length - dated.length}. Они доступны при
-        выборе всех лет. Фильтр использует год истории. Дата второго снимка
-        сравнения на отбор не влияет. Столбцы показывают весь архив.
+        {event === "all" ? "Здесь собраны разные события, а не только даты основания поселений." : `Показаны только события «${event}».`} Без точного года: {selectedPlaces.length - dated.length}. Эти карточки доступны при выборе всех лет.
       </p>
+      <details className="timeline-help"><summary>Как читать шкалу</summary><p>Каждая карточка учитывается по одному основному событию: основанию, переписи, присвоению названия, упразднению или другому событию, указанному рядом с годом. Годы отдельных воспоминаний и даты фотографий могут отличаться. Столбцы учитывают выбранный тип события во всём архиве.</p></details>
     </section>
   );
 }

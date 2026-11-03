@@ -8,9 +8,10 @@ import {
   Pencil,
   History,
 } from "lucide-react";
-import { api, categoryLabel, type Submission, type EditRecord } from "../types";
+import { api, categoryLabel, dateFor, type Submission, type EditRecord } from "../types";
 import AdminCatalogue, { AdminHistory } from "./AdminCatalogue";
 import EditSubmission from "./EditSubmission";
+import PhotoCredits from "./PhotoCredits";
 import BeforeAfter from "./BeforeAfter";
 import { PassportCard } from "./Passport";
 export default function Editor({ onPublished, onAuthChange }: { onPublished: () => void; onAuthChange: (authenticated: boolean) => void }) {
@@ -89,7 +90,7 @@ export default function Editor({ onPublished, onAuthChange }: { onPublished: () 
     return (
       <div className="editor-login">
         <span className="eyebrow">БЕРЕЖНО СОХРАНЯЕМ ИСТОРИИ</span>
-        <h2>Кабинет редактора</h2>
+        <h2>Кабинет администратора</h2>
         <p>
           Управляйте карточками архива, проверяйте материалы жителей и просматривайте историю изменений.
         </p>
@@ -114,7 +115,7 @@ export default function Editor({ onPublished, onAuthChange }: { onPublished: () 
             </div>
           )}
           <button className="button primary" disabled={busy}>
-            {busy ? "Проверяем…" : "Войти в редакцию"}
+            {busy ? "Проверяем…" : "Войти в кабинет"}
           </button>
         </form>
         <p className="muted small">
@@ -204,7 +205,7 @@ export default function Editor({ onPublished, onAuthChange }: { onPublished: () 
       {visible.map((item) => (
         <article key={item.id} className="review-card">
           <div className="meta">
-            {categoryLabel(item.category)} · {item.location} · {item.year}
+            {categoryLabel(item.category)} · {item.location} · {dateFor(item)}
           </div>
           <h3>{item.title}</h3>
           <div className="editor-card-tools">
@@ -261,7 +262,7 @@ export default function Editor({ onPublished, onAuthChange }: { onPublished: () 
                         <strong>До правки</strong>
                         <p>{edit.before.title}</p>
                         <p>
-                          {edit.before.year} · {edit.before.location}
+                          {dateFor(edit.before)} · {edit.before.location}
                         </p>
                         <p>{edit.before.story}</p>
                         <p>Источник: {edit.before.source}</p>
@@ -271,7 +272,7 @@ export default function Editor({ onPublished, onAuthChange }: { onPublished: () 
                         <strong>После правки</strong>
                         <p>{edit.after.title}</p>
                         <p>
-                          {edit.after.year} · {edit.after.location}
+                          {dateFor(edit.after)} · {edit.after.location}
                         </p>
                         <p>{edit.after.story}</p>
                         <p>Источник: {edit.after.source}</p>
@@ -305,6 +306,7 @@ export default function Editor({ onPublished, onAuthChange }: { onPublished: () 
             />
           ) : (
             <>
+              {item.mediaId && <PhotoCredits credit={item.photoCredit}/>}
               {item.mediaId && (
                 <img
                   className="review-image"
@@ -330,7 +332,7 @@ export default function Editor({ onPublished, onAuthChange }: { onPublished: () 
                 <dd>{item.source}</dd>
                 <dt>Координаты</dt>
                 <dd>
-                  {item.latitude}, {item.longitude}
+                  {item.latitude === null || item.longitude === null ? "Не установлены" : `${item.latitude}, ${item.longitude}`}
                 </dd>
               </dl>
               {item.status === "pending" ? (

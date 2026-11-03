@@ -58,3 +58,15 @@ test("a missing or malformed catalogue reports a readable error instead of displ
     }), /Не удалось загрузить паспорта/);
   }
 });
+
+test("server-backed deployments fail visibly instead of resurrecting a stale static snapshot", async () => {
+  for (const failure of ["network", "shape", "503"]) {
+    const requests = [];
+    await assert.rejects(loadArchive(async url => {
+      requests.push(url);
+      if (failure === "network") throw new TypeError("Failed to fetch");
+      return failure === "shape" ? Response.json({error:"Unavailable"}) : Response.json([], {status:503});
+    }, false), /Архив временно недоступен/);
+    assert.deepEqual(requests, ["/api/places"]);
+  }
+});

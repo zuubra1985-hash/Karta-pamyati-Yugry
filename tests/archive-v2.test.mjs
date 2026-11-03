@@ -120,7 +120,7 @@ test("invalid photo pairs fail atomically without saving files or submissions", 
       { photo: undefined },
       { afterYear: undefined },
       { afterSource: undefined },
-      { afterYear: 1900 },
+      { afterYear: 1499 },
       { afterPhoto: undefined },
       { afterPhoto: { ...png, type: "image/jpeg" } },
     ]) {
@@ -394,4 +394,54 @@ test("passport source URLs must be valid HTTPS without credentials; personal fie
         400,
       );
     assert.equal(store.submissions().length, 0);
+  }));
+
+test("a memory can be moderated and published without invented coordinates, preserving separate photo provenance", () =>
+  fixture(async ({store, request}) => {
+    const photoCredit = {photographer:"Автор тестового снимка", date:"1930-е годы", source:"Семейный архив", rights:"Разрешение автора от 2026-11-03"};
+    assert.equal((await request("/api/submissions", {body:{...original,latitude:null}})).status,400);
+    const submitted = await request("/api/submissions", {body:{...pair, latitude:null, longitude:null, afterYear:1900, photoCredit, afterPhotoCredit:{source:"Другой архив", rights:"CC BY 4.0"}}});
+    assert.equal(submitted.status,201); // Photo dates are independent of the indexed story year (1975).
+    const {id} = await submitted.json();
+    assert.equal((await request(`/api/admin/submissions/${id}`, {admin:true, body:{action:"approve", revision:0}})).status,200);
+    const published = await (await request(`/api/places/${id}`)).json();
+    assert.equal(published.latitude,null); assert.equal(published.longitude,null);
+    assert.deepEqual(published.photoCredit,photoCredit);
+    assert.equal(published.afterPhotoCredit.rights,"CC BY 4.0");
+    assert.ok(!published.contact && !published.consent);
+    assert.equal(store.place(id).latitude,null);
+  }));
+
+test("a linked memory keeps its parent through editing and moderation without requiring an invented year or GPS", () =>
+  fixture(async ({store, request}) => {
+    const input = {...original,year:null,latitude:null,longitude:null,relatedPlaceId:"old-surgut"};
+    assert.equal((await request("/api/submissions",{body:{...input,relatedPlaceId:"missing-place",photo:png}})).status,400);
+    assert.equal(store.submissions().length,0);
+    assert.equal(store.db.prepare("SELECT count(*) n FROM media").get().n,0);
+    const response = await request("/api/submissions",{body:input});
+    assert.equal(response.status,201);
+    const {id} = await response.json();
+    assert.equal(store.submission(id).relatedPlaceId,"old-surgut");
+    assert.equal((await request(`/api/places/${id}`)).status,404);
+    assert.equal((await request(`/api/admin/submissions/${id}`,{method:"PATCH",admin:true,body:{...fields(input),revision:0}})).status,200);
+    assert.equal((await request(`/api/admin/submissions/${id}`,{admin:true,body:{action:"approve",revision:1}})).status,200);
+    const published = await (await request(`/api/places/${id}`)).json();
+    assert.equal(published.relatedPlaceId,"old-surgut");
+    assert.equal(published.dateLabel,"Воспоминание");
+    assert.equal(published.year,null); assert.equal(published.latitude,null); assert.equal(published.longitude,null);
+    assert.ok(!published.contact && !published.consent);
+  }));
+
+test("editorial correction does not compare a photo year to an unrelated historical event year", () =>
+  fixture(async ({request}) => {
+    const response = await request("/api/submissions",{body:{...pair,year:1975,afterYear:1900}});
+    assert.equal(response.status,201);
+    const {id}=await response.json();
+    const corrected = await request(`/api/admin/submissions/${id}`,{method:"PATCH",admin:true,body:{...fields(pair),afterYear:1900,revision:0}});
+    assert.equal(corrected.status,200);
+    assert.equal((await corrected.json()).afterYear,1900);
+    assert.equal((await request(`/api/admin/submissions/${id}`,{admin:true,body:{action:"approve",revision:1}})).status,200);
+    const editedPlace = await request(`/api/admin/places/${id}`,{method:"PATCH",admin:true,body:{...fields(pair),afterYear:1900,summary:"Уточнение уже опубликованной истории",dateLabel:"Воспоминание",coordinateStatus:"hypothesis",passport:null,appearance:{accent:"forest",imagePosition:"center"},revision:0}});
+    assert.equal(editedPlace.status,200);
+    assert.equal((await editedPlace.json()).afterYear,1900);
   }));

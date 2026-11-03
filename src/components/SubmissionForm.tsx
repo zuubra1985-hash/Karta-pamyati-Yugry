@@ -1,18 +1,27 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Check, Send, ArrowRight } from "lucide-react";
-import { api, categories, type Photo } from "../types";
+import { api, categories, type Photo, type Place } from "../types";
 import { organization } from "../organization";
+import { PhotoCreditFields, readPhotoCredit } from "./PhotoCredits";
 import PhotoUpload from "./PhotoUpload";
 import CoordinatesFields from "./CoordinatesFields";
 import { readCoordinates } from "../maps";
 import { PassportFields, readPassport } from "./Passport";
-export default function SubmissionForm({ onClose }: { onClose: () => void }) {
+export default function SubmissionForm({ onClose, relatedPlace }: { onClose: () => void; relatedPlace?: Place }) {
+  const success = useRef<HTMLHeadingElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState("");
+  const [unknownLocation, setUnknownLocation] = useState(false);
   const [photo, setPhoto] = useState<Photo | null>(null);
   const [afterPhoto, setAfterPhoto] = useState<Photo | null>(null);
   const [uploading, setUploading] = useState({ before: false, after: false });
+  useEffect(() => {
+    if (result) {
+      success.current?.closest("dialog")?.scrollTo({top: 0});
+      success.current?.focus({preventScroll: true});
+    }
+  }, [result]);
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError("");
@@ -28,8 +37,11 @@ export default function SubmissionForm({ onClose }: { onClose: () => void }) {
         method: "POST",
         body: JSON.stringify({
           ...readPassport(values),
-          year: Number(values.year),
-          ...readCoordinates(values),
+          year: values.year === "" ? null : Number(values.year),
+          relatedPlaceId: relatedPlace?.id,
+          photoCredit: photo ? readPhotoCredit(values) : undefined,
+          afterPhotoCredit: afterPhoto ? readPhotoCredit(values, "afterPhotoCredit") : undefined,
+          ...(unknownLocation ? {latitude: null, longitude: null} : readCoordinates(values)),
           consent: values.consent === "on",
           photo: photo ? { type: photo.type, data: photo.data } : undefined,
           afterPhoto: afterPhoto
@@ -53,14 +65,13 @@ export default function SubmissionForm({ onClose }: { onClose: () => void }) {
           <Check size={34} />
         </span>
         <span className="eyebrow">СПАСИБО ЗА ВАШУ ИСТОРИЮ</span>
-        <h2>
+        <h2 ref={success} tabIndex={-1}>
           Теперь она
           <br />
           не потеряется.
         </h2>
         <p>
-          Материал сохранён в базе и передан редактору. Он появится на карте
-          после проверки источников и согласий.
+          Материал передан редактору. После проверки источников и согласий он сможет появиться в архиве. Если координаты неизвестны, история будет доступна без точки на карте.
         </p>
         <div className="receipt">
           Номер материала <code>{result}</code>
@@ -69,7 +80,7 @@ export default function SubmissionForm({ onClose }: { onClose: () => void }) {
           Сохраните номер, чтобы сослаться на материал при обращении к редакции.
         </p>
         <button className="button primary" onClick={onClose}>
-          Вернуться к карте <ArrowRight size={17} />
+          Вернуться к архиву <ArrowRight size={17} />
         </button>
       </div>
     );
@@ -84,10 +95,11 @@ export default function SubmissionForm({ onClose }: { onClose: () => void }) {
         </h2>
         <p>
           Расскажите о месте, которое помните. Все материалы проходят
-          редакторскую проверку перед публикацией.
+          редакторскую проверку перед публикацией. Год, координаты и фотографии можно не указывать.
         </p>
       </div>
       <form onSubmit={submit} className="submission-form">
+        {relatedPlace && <p className="submission-context full">Вы дополняете карточку <strong>«{relatedPlace.title}»</strong>. После проверки рассказ появится в архиве со ссылкой на это место.</p>}
         <label className="full">
           Название истории
           <input
@@ -105,12 +117,13 @@ export default function SubmissionForm({ onClose }: { onClose: () => void }) {
             required
             minLength={2}
             maxLength={100}
+            defaultValue={relatedPlace?.title || ""}
             placeholder="Сургут"
           />
         </label>
         <label>
           Тема
-          <select name="category">
+          <select name="category" defaultValue={relatedPlace?.category}>
             {categories.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.label}
@@ -125,11 +138,11 @@ export default function SubmissionForm({ onClose }: { onClose: () => void }) {
             type="number"
             min={1500}
             max={new Date().getFullYear()}
-            required
-            placeholder="1975"
+            placeholder="Если помните год, например 1975"
           />
         </label>
-        <CoordinatesFields />
+        <label className="checkbox full"><input type="checkbox" checked={unknownLocation} onChange={e => setUnknownLocation(e.target.checked)}/>Координаты неизвестны — отправить воспоминание без точки на карте</label>
+        {!unknownLocation && <CoordinatesFields />}
         <label className="full">
           Ваша история
           <textarea
@@ -144,10 +157,12 @@ export default function SubmissionForm({ onClose }: { onClose: () => void }) {
         <PhotoUpload
           label="Первый снимок"
           photo={photo}
-          onChange={setPhoto}
+          onChange={p => {setPhoto(p); if (!p) setAfterPhoto(null);}}
           onBusy={(busy) => setUploading((p) => ({ ...p, before: busy }))}
           onError={setError}
         />
+        {photo && <PhotoCreditFields/>}
+        {photo && <>
         <div className="comparison-form-intro full">
           <strong>Тогда и сейчас · по желанию</strong>
           <p>
@@ -187,15 +202,17 @@ export default function SubmissionForm({ onClose }: { onClose: () => void }) {
             </label>
           </>
         )}
+        {afterPhoto && <PhotoCreditFields second prefix="afterPhotoCredit" title="Описание и права на второй снимок"/>}
+        </>}
         <label className="full">
-          Источник и автор фотографии
+          Источник рассказа
           <textarea
             name="source"
             rows={2}
             required
             minLength={3}
             maxLength={1000}
-            placeholder="Личный рассказ; семейный архив, фотограф — …; ссылка на источник"
+            placeholder="Личный рассказ; семейный архив; ссылка на публикацию"
           />
         </label>
         <PassportFields />
@@ -240,7 +257,7 @@ export default function SubmissionForm({ onClose }: { onClose: () => void }) {
           <span>
             Сначала — бережная проверка.
             <br />
-            Затем — место на карте.
+            Затем — публикация в архиве.
           </span>
           <button
             className="button primary"

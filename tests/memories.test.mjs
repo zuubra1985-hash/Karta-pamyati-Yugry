@@ -91,3 +91,17 @@ test("additional memoirs preserve the actual narrator and new settlement links",
   assert.match(memories.find(m => m.id === "memory-kuivasheva").narrator, /Анна Нестеровна Куйвашева/);
   assert.match(memories.find(m => m.id === "memory-ryanina").narrator, /Фелицата Васильевна Рянина/);
 });
+
+test("historical Trom-Agan retains a separate 1956 memory and never borrows the modern settlement's point or founding date", () => {
+  const place = withMemories(places.find(p => p.id === "pas-026"));
+  assert.equal(place.year,1971);
+  assert.match(place.historicalContext.coordinateScope,/современному посёлку/);
+  assert.match(place.historicalContext.coordinateScope,/старого Тром-Агана.*не установлено/);
+  assert.equal(place.historicalContext.phases.length,2);
+  assert.match(place.historicalContext.phases[0].period,/1956/);
+  assert.match(place.memories[0].historicalContext,/Старый Тром-Аган/);
+  for (const id of ["pas-004","pas-020","pas-025","pas-029"]) {
+    const missing = withMemories(places.find(p => p.id === id));
+    assert.equal(missing.latitude,null); assert.equal(missing.longitude,null);
+  }
+});

@@ -28,7 +28,13 @@ export const passportSchema = z
   })
   .strict();
 
+export const photoCreditSchema = z.object({
+  photographer: optionalText, date: optionalText, source: optionalText, rights: optionalText,
+}).strict();
+
 export const storyFields = {
+  photoCredit: photoCreditSchema.optional(),
+  afterPhotoCredit: photoCreditSchema.optional(),
   title: z.string().trim().min(5).max(150),
   location: z.string().trim().min(2).max(100),
   category: z.enum([
@@ -38,9 +44,9 @@ export const storyFields = {
     "culture",
     "nature",
   ]),
-  year: z.number().int().min(1500).max(new Date().getFullYear()),
-  latitude: z.number().min(58).max(67),
-  longitude: z.number().min(58).max(86),
+  year: z.number().int().min(1500).max(new Date().getFullYear()).nullable(),
+  latitude: z.number().min(58).max(67).nullable(),
+  longitude: z.number().min(58).max(86).nullable(),
   story: z.string().trim().min(80).max(15000),
   author: z.string().trim().min(2).max(100),
   source: z.string().trim().min(3).max(1000),
@@ -57,8 +63,13 @@ export const photoSchema = z.object({
   data: z.string().max(2800000),
   type: z.enum(["image/jpeg", "image/png", "image/webp"]),
 });
+function validateCoordinatePair(value, ctx) {
+  if ((value.latitude === null) !== (value.longitude === null))
+    ctx.addIssue({code: "custom", path: ["latitude"], message: "Укажите обе координаты или оставьте местоположение неизвестным."});
+}
 export const submissionSchema = z
   .object({
+    relatedPlaceId: z.string().min(1).max(100).regex(/^[a-zA-Z0-9_-]+$/).optional(),
     ...storyFields,
     contact: z.string().email().max(254),
     consent: z.literal(true),
@@ -66,6 +77,7 @@ export const submissionSchema = z
     afterPhoto: photoSchema.optional(),
   })
   .superRefine((value, ctx) => {
+    validateCoordinatePair(value, ctx);
     if (
       value.afterPhoto &&
       (!value.photo || value.afterYear === undefined || !value.afterSource)
@@ -84,17 +96,11 @@ export const submissionSchema = z
         path: ["afterPhoto"],
         message: "Добавьте второй снимок или уберите его подпись.",
       });
-    if (value.afterYear !== undefined && value.afterYear < value.year)
-      ctx.addIssue({
-        code: "custom",
-        path: ["afterYear"],
-        message: "Второй снимок не может быть раньше первого.",
-      });
   });
 // Strict allowlist: media IDs, contacts, consents and publication state cannot be changed by this endpoint.
 export const editorialSchema = z
   .object({ ...storyFields, revision: z.number().int().min(0) })
-  .strict();
+  .strict().superRefine(validateCoordinatePair);
 
 export const placeEditSchema = z.object({
   ...storyFields,
@@ -116,6 +122,4 @@ export const placeEditSchema = z.object({
 }).strict().superRefine((v, ctx) => {
   if ((v.latitude === null) !== (v.longitude === null) || (v.coordinateStatus === "unknown") !== (v.latitude === null))
     ctx.addIssue({code: "custom", message: "Укажите обе координаты и их достоверность либо выберите неизвестное местоположение."});
-  if (v.afterYear !== undefined && v.year !== null && v.afterYear < v.year)
-    ctx.addIssue({code: "custom", message: "Второй снимок не может быть раньше первого."});
 });

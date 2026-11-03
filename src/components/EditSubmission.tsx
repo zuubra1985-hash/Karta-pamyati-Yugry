@@ -1,7 +1,8 @@
-import { useState, type FormEvent } from "react";
+import { useLayoutEffect, useRef, useState, type FormEvent } from "react";
 import { Save } from "lucide-react";
 import { api, categories, type Submission } from "../types";
 import { PassportFields, readPassport } from "./Passport";
+import { PhotoCreditFields, readPhotoCredit } from "./PhotoCredits";
 import CoordinatesFields from "./CoordinatesFields";
 import { readCoordinates } from "../maps";
 export default function EditSubmission({
@@ -13,6 +14,13 @@ export default function EditSubmission({
   onSaved: (item: Submission) => void;
   onCancel: () => void;
 }) {
+  const [unknownLocation, setUnknownLocation] = useState(item.latitude === null || item.longitude === null);
+  const form = useRef<HTMLFormElement>(null);
+  useLayoutEffect(() => {
+    form.current?.closest("dialog")?.scrollTo({top:0});
+    const heading = form.current?.querySelector<HTMLElement>("h2");
+    if (heading) {heading.tabIndex=-1;heading.focus({preventScroll:true});}
+  }, []);
   const [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   async function submit(e: FormEvent<HTMLFormElement>) {
@@ -25,8 +33,10 @@ export default function EditSubmission({
         method: "PATCH",
         body: JSON.stringify({
           ...readPassport(data),
-          year: Number(data.year),
-          ...readCoordinates(data),
+          year: data.year === "" ? null : Number(data.year),
+          photoCredit: item.mediaId ? readPhotoCredit(data) : undefined,
+          afterPhotoCredit: item.afterMediaId ? readPhotoCredit(data, "afterPhotoCredit") : undefined,
+          ...(unknownLocation ? {latitude: null, longitude: null} : readCoordinates(data)),
           afterYear: item.afterMediaId ? Number(data.afterYear) : undefined,
           revision: item.revision,
         }),
@@ -39,7 +49,8 @@ export default function EditSubmission({
     }
   }
   return (
-    <form className="edit-submission" onSubmit={submit}>
+    <form ref={form} className="edit-submission" onSubmit={submit}>
+      <h2 className="full">Уточнить материал</h2>
       <p className="edit-notice">
         Уточняйте материал с сохранением смысла и согласия автора. Исходная
         версия останется в закрытой истории правок. После сохранения проверьте
@@ -82,8 +93,7 @@ export default function EditSubmission({
           type="number"
           min={1500}
           max={new Date().getFullYear()}
-          defaultValue={item.year}
-          required
+          defaultValue={item.year ?? ""}
         />
       </label>
       <label>
@@ -96,7 +106,10 @@ export default function EditSubmission({
           required
         />
       </label>
-      <CoordinatesFields initial={item} editorial />
+      <label className="checkbox full"><input type="checkbox" checked={unknownLocation} onChange={e => setUnknownLocation(e.target.checked)}/>Местоположение не установлено</label>
+      {!unknownLocation && <CoordinatesFields initial={item.latitude !== null && item.longitude !== null ? {latitude: item.latitude, longitude: item.longitude} : undefined} editorial />}
+      {item.mediaId && <PhotoCreditFields initial={item.photoCredit}/>}
+      {item.afterMediaId && <PhotoCreditFields second prefix="afterPhotoCredit" initial={item.afterPhotoCredit} title="Описание и права на второй снимок"/>}
       <label className="full">
         Текст материала
         <textarea

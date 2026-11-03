@@ -12,10 +12,11 @@
     "start": "NODE_ENV=production node server/index.mjs",
     "test": "node --test tests/*.test.mjs",
     "admin:create": "node scripts/create-admin.mjs",
-    "test:ui": "npm run build && node tests/browser.mjs && node tests/static-browser.mjs && node tests/admin-browser.mjs",
+    "test:ui": "npm run build && node tests/browser.mjs && node tests/static-browser.mjs && node tests/admin-browser.mjs && node tests/ux-browser.mjs && npm run build:server && node tests/server-fallback-browser.mjs",
     "backup": "node scripts/backup.mjs",
     "admin:create:cloud": "node --env-file=.env.cloud.local scripts/create-admin.mjs",
-    "cloud:check": "node --env-file=.env.cloud.local scripts/check-cloud.mjs"
+    "cloud:check": "node --env-file=.env.cloud.local scripts/check-cloud.mjs",
+    "build:server": "ARCHIVE_DEPLOYMENT_MODE=server npm run build"
   },
   "dependencies": {
     "@libsql/client": "^0.18.0",

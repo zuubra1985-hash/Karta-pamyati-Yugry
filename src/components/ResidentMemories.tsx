@@ -13,6 +13,7 @@ export default function ResidentMemories({ memories, onPlace, placeTitles }: {
       {memories.map((memory) => <article className="memoir-card" key={memory.id}>
         <span className="memoir-period">{memory.period}</span>
         <h4>{memory.title}</h4>
+        {memory.historicalContext && <p className="memoir-context">{memory.historicalContext}</p>}
         <p className="memoir-narrator">{memory.narrator}</p>
         {memory.quote && <blockquote><p>«{memory.quote}»</p><cite>Из опубликованного воспоминания</cite></blockquote>}
         <div className="memoir-summary"><span>Краткий пересказ</span>{memory.summary.split("\n\n").map((paragraph, i) => <p key={i}>{paragraph}</p>)}</div>

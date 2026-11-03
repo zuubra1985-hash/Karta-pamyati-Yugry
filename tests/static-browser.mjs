@@ -38,6 +38,19 @@ try {
   assert.equal(await page.locator(".mini-card").count(), 36);
   assert.match(await page.locator(".hero-facts").textContent(), /36/);
   assert.match(await page.locator(".demo-notice").textContent(), /36 историй/);
+  await page.getByLabel("Тип события", {exact:true}).selectOption("Упразднение");
+  assert.equal(await page.locator(".mini-card").count(),2);
+  assert.match(await page.locator(".timeline-note").innerText(), /только события «Упразднение»/);
+  await page.getByLabel("Тип события", {exact:true}).selectOption("Учёт населения");
+  assert.equal(await page.locator(".mini-card").count(),13);
+  await page.getByLabel("Тип события", {exact:true}).selectOption("Возникновение");
+  assert.equal(await page.locator(".mini-card").count(),1);
+  assert.match(await page.locator(".mini-card").innerText(), /Рябиновый/);
+  await page.waitForFunction(() => [...document.querySelectorAll('.timeline-histogram div[title*="0 карточек."] > span')].every(el => el.getBoundingClientRect().height === 0));
+  await page.getByLabel("Тип события", {exact:true}).selectOption("all");
+  assert.equal(await page.locator(".mini-card").count(),36);
+  assert.match(await page.locator(".timeline-note").innerText(), /не только даты основания/);
+  passed.push("Timeline separates census, abolition and founding with matching card counts");
   const mapFrame = page.getByTitle("Яндекс Карты — поселения Югры");
   await mapFrame.waitFor();
   assert.equal(new URL(await mapFrame.getAttribute("src")).searchParams.get("pt").split("~").length, 32);
@@ -73,6 +86,19 @@ try {
   assert.equal(new URL(await mapFrame.getAttribute("src")).searchParams.get("pt").split("~").length, 32);
   passed.push("Static deployment: public coordinate finder accepts DMS and rejects reversed axes without changing the selected point");
 
+  await page.goto(`${origin}/#place/pas-026`, {waitUntil:"networkidle"});
+  assert.match(await page.locator(".location-certainty").innerText(), /современному посёлку.*старого Тром-Агана/s);
+  assert.equal(await page.locator(".historical-phases article").count(),2);
+  assert.match(await page.locator(".memoir-context").innerText(), /1956.*1971/);
+  await page.goto(`${origin}/#place/pas-020`, {waitUntil:"networkidle"});
+  assert.match(await page.locator(".location-certainty").innerText(), /Координаты неизвестны/);
+  assert.equal(await page.locator(".place-location-links").count(),0);
+  assert.match(await page.locator(".passport-card").innerText(), /Состояние не установлено/);
+  assert.match(await page.locator(".passport-card").innerText(), /Охранный статус не подтверждён/);
+  assert.match(await page.locator(".source-gap").innerText(), /внешняя публикация.*не указана/);
+  assert.match(await page.locator(".resident-memories").innerText(), /пока не добавлены/);
+  await page.keyboard.press("Escape");
+  passed.push("Historical phases, unknown coordinates, missing memories and passport evidence remain explicit");
   await page.getByRole("textbox", { name: "Поиск по архиву" }).fill("Немчинова");
   assert.equal(await page.locator(".mini-card").count(), 1);
   await page.locator(".mini-card-main").click();
@@ -132,7 +158,7 @@ try {
   assert.deepEqual(errors, []);
   passed.push("Static deployment: immediate navigation after zooming does not access a removed map");
 
-  await page.getByRole("button", { name: "Добавить историю", exact: true }).click();
+  await page.locator(".add-top").click();
   await page.getByRole("heading", { name: "Архив открыт для чтения" }).waitFor();
   assert.equal(await page.locator("dialog form").count(), 0);
   await page.getByRole("button", { name: "Вернуться к архиву" }).click();

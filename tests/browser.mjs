@@ -115,7 +115,7 @@ try {
   assert.equal(await page.locator(".story-card").count(), 1);
   passed.push("Story dialog, keyboard dismissal, favorites survive reload");
   await page
-    .getByRole("button", { name: "Добавить историю", exact: true })
+    .locator(".add-top")
     .click();
   const dialog = page.getByRole("dialog");
   await dialog
@@ -170,7 +170,7 @@ try {
     .getByLabel("Источник второго снимка", { exact: true })
     .fill("Второй снимок — изолированный тест");
   await dialog
-    .getByLabel("Источник и автор фотографии")
+    .getByLabel("Источник рассказа", { exact: true })
     .fill("Изолированный тест, автор — автоматическая проверка");
   await dialog.getByLabel("Ваше имя", { exact: true }).fill("Тестовый автор");
   await dialog
@@ -201,7 +201,7 @@ try {
   await dialog.locator(".submission-success").waitFor();
   assert.equal(store.submissions().length, 1);
   assert.equal(store.places().length, 8);
-  await dialog.getByRole("button", { name: "Вернуться к карте" }).click();
+  await dialog.getByRole("button", { name: "Вернуться к архиву", exact: true }).click();
   passed.push("Submit story with image and consent; remains unpublished");
   await page.locator(".admin-entry").click();
   await page
@@ -212,7 +212,7 @@ try {
     .getByRole("dialog")
     .getByLabel("Пароль", { exact: true })
     .fill("browser-test-password-only");
-  await page.getByRole("button", { name: "Войти в редакцию" }).click();
+  await page.getByRole("button", { name: "Войти в кабинет" }).click();
   await page.getByRole("button", { name: /^Материалы жителей/ }).click();
   await page.locator(".review-card").waitFor();
   await page
@@ -289,6 +289,8 @@ try {
   await page.locator(".route-detail li").first().getByRole("button").click();
   await page.locator(".place-detail").waitFor();
   await page.keyboard.press("Escape");
+  await page.locator(".route-detail").waitFor();
+  await page.keyboard.press("Escape");
   await page
     .locator(".main-nav")
     .getByRole("link", { name: "О проекте", exact: true })
@@ -350,11 +352,11 @@ try {
   await page.goto(origin + "/#map", { waitUntil: "networkidle" });
   await page.reload({ waitUntil: "networkidle" });
   assert.equal(await page.locator(".mini-card").count(), 38);
-  assert.equal(await page.locator(".memory-pin.hypothesis").count(), 32);
+  assert.equal(await page.locator(".memory-pin.hypothesis").count(), 34);
   await page.getByLabel("Показывать примерные местоположения", { exact: false }).uncheck();
   assert.equal(await page.locator(".memory-pin.hypothesis").count(), 0);
   await page.getByLabel("Показывать примерные местоположения", { exact: false }).check();
-  assert.equal(await page.locator(".memory-pin.hypothesis").count(), 32);
+  assert.equal(await page.locator(".memory-pin.hypothesis").count(), 34);
   await page.getByRole("textbox", { name: "Поиск по архиву" }).fill("Кедровый");
   assert.equal(await page.locator(".mini-card").count(), 1);
   assert.equal(await page.locator(".leaflet-marker-icon").count(), 0);

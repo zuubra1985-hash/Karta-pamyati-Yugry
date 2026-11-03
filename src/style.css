@@ -2898,7 +2898,7 @@ textarea {
   border-radius: 3px 3px 0 0;
   width: 100%;
   max-width: 66px;
-  min-height: 3px;
+  min-height: 0;
   transition:
     height 0.15s,
     background 0.15s;
@@ -3590,3 +3590,60 @@ textarea {
 .coordinate-pair-input { display:block; width:100%; margin-top:8px; }
 
 .site-footer .footer-bottom { border-top:0; padding-top:16px; }
+
+/* Provenance and uncertainty are shown next to the relevant data. */
+.timeline-event { display:flex; align-items:center; gap:12px; font-size:12px; margin:14px 0; }
+.timeline-event select { max-width:100%; border:1px solid #d4ddc8; border-radius:4px; background:#fffdf6; color:inherit; padding:8px; font:inherit; }
+.location-certainty, .map-data-note, .memoir-context, .source-gap { font-size:12px; line-height:1.7; color:#596c5c; }
+.location-certainty { padding:12px 15px; border-left:3px solid #819875; margin:15px 0; background:#eff1e6; }
+.map-data-note { padding:10px 15px; }
+.memoir-context { border-left:2px solid #819875; padding-left:12px; margin:10px 0; }
+.photo-credits, .historical-phases { margin:26px 0; padding:20px 0; border-top:1px solid #d9dfce; }
+.photo-credits h3, .historical-phases h3 { margin-bottom:14px; font-size:22px; }
+.photo-credits dl { display:grid; grid-template-columns:1fr 1fr; gap:12px 24px; font-size:12px; line-height:1.7; }
+.photo-credits dt { color:#73836e; }
+.photo-credits dd { margin:0; overflow-wrap:anywhere; }
+.historical-phases article { margin-top:18px; padding-left:16px; border-left:2px solid #b9c5ac; font-size:13px; line-height:1.8; }
+.historical-phases h4 { font-size:18px; margin-bottom:5px; }
+.historical-phases article > strong { font-weight:500; color:#697c60; }
+.historical-phases a { display:inline-flex; gap:5px; align-items:center; font-size:12px; text-decoration:underline; overflow-wrap:anywhere; }
+.photo-credit-fields .passport-help { grid-column:1/-1; }
+@media (max-width:600px) {
+  .timeline-event { flex-direction:column; align-items:stretch; }
+  .photo-credits dl { grid-template-columns:1fr; }
+}
+
+/* Dialog controls stay available throughout long passports and forms. */
+.modal-controls { position:sticky; top:12px; z-index:30; height:0; display:flex; justify-content:flex-end; padding-right:12px; pointer-events:none; }
+.modal-controls .modal-close { position:static; flex-shrink:0; pointer-events:auto; width:40px; height:40px; background:var(--paper); border:1px solid var(--border); border-radius:50%; box-shadow:0 2px 8px #203d2e12; }
+.dialog-back { margin:22px 65px 0 24px; min-height:40px; }
+.submission-context { background:#eef1e6; border-left:3px solid #819875; padding:12px 16px; font-size:14px; line-height:1.7; }
+.related-place { font-size:14px; margin-bottom:14px; }
+.related-place .text-button { display:inline-flex; font-size:inherit; }
+.related-stories { border-top:1px solid var(--border); padding-top:20px; margin:24px 0; }
+.related-stories h3 { font-size:22px; margin-bottom:12px; }
+.related-stories .text-button { display:flex; margin:8px 0; min-height:40px; }
+.timeline-help { margin-top:10px; font-size:12px; line-height:1.7; color:#65745f; }
+.timeline-help summary { cursor:pointer; }
+.timeline-help p { margin-top:8px; }
+.timeline-heading strong, .timeline-heading .text-button, .timeline-controls label { font-size:12px; }
+.timeline-histogram small { font-size:11px; }
+.timeline-note { font-size:12px; line-height:1.7; }
+.modal :is(h2,h3):focus, main:focus { outline:none; }
+.submission-form label, .edit-submission label { font-size:13px; }
+.submission-form .small, .submission-form .passport-help { font-size:12px; line-height:1.7; }
+.routes-section .demo-notice p { font-size:13px; }
+@media (max-width:700px) {
+  .header-actions .icon-button, .header-actions .button { min-width:40px; min-height:40px; }
+  .submission-form :is(input:not([type=checkbox]):not([type=hidden]),select,textarea), .edit-submission :is(input:not([type=checkbox]):not([type=hidden]),select,textarea) { font-size:16px; }
+  .submission-form label, .edit-submission label { font-size:14px; }
+  .submission-form .small, .submission-form .passport-help, .submission-form .coordinates-fields > p { font-size:13px; }
+  .timeline-heading strong, .timeline-heading .text-button { font-size:12px; }
+  .timeline-histogram small { font-size:10px; }
+  .about-policy p, .principles p { font-size:14px; line-height:1.8; }
+  .participate p { font-size:12px; }
+}
+:root { --muted:#62705f; }
+.form-heading p, .source-box small, .detail-contribute > span, .photo-credits dt, .passport-help, .timeline-note, .timeline-help { color:#58664f; }
+.contributor-memories { margin:32px 0; }
+.contributor-memories > h2 { font-size:28px; margin-bottom:22px; }

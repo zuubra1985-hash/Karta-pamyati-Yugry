@@ -1,4 +1,5 @@
 import { useState } from "react";
+import PhotoCredits from "./PhotoCredits";
 import { Columns2 } from "lucide-react";
 import { afterImageFor, imageFor, type Place } from "../types";
 export default function BeforeAfter({
@@ -14,6 +15,8 @@ export default function BeforeAfter({
     | "afterImage"
     | "afterYear"
     | "afterSource"
+    | "photoCredit"
+    | "afterPhotoCredit"
     | "demo"
   >;
 }) {
@@ -21,6 +24,7 @@ export default function BeforeAfter({
   const [sideBySide, setSideBySide] = useState(false);
   const after = afterImageFor(place);
   if (!after) return null;
+  const beforeDate = place.photoCredit?.date || (place.demo ? String(place.year) : "дата съёмки не установлена");
   return (
     <section className="comparison" aria-label="Сравнение тогда и сейчас">
       <div className="comparison-heading">
@@ -48,16 +52,16 @@ export default function BeforeAfter({
           <figure>
             <img
               src={imageFor(place)}
-              alt={`${place.title}, первый снимок, ${place.year} год`}
+              alt={`${place.title}, первый снимок, ${beforeDate}`}
             />
-            <figcaption>Тогда · {place.year}</figcaption>
+            <figcaption>Первый снимок · {beforeDate}</figcaption>
           </figure>
           <figure>
             <img
               src={after}
               alt={`${place.title}, второй снимок, ${place.afterYear} год`}
             />
-            <figcaption>Позже · {place.afterYear}</figcaption>
+            <figcaption>Второй снимок · {place.afterYear}</figcaption>
           </figure>
         </div>
       ) : (
@@ -74,14 +78,14 @@ export default function BeforeAfter({
             >
               <img
                 src={imageFor(place)}
-                alt={`${place.title}, первый снимок, ${place.year} год`}
+                alt={`${place.title}, первый снимок, ${beforeDate}`}
               />
             </div>
             <span className="comparison-label before-label">
-              Тогда · {place.year}
+              Первый снимок · {beforeDate}
             </span>
             <span className="comparison-label after-label">
-              Позже · {place.afterYear}
+              Второй снимок · {place.afterYear}
             </span>
             <span
               className="comparison-divider"
@@ -104,6 +108,7 @@ export default function BeforeAfter({
           </label>
         </>
       )}
+      {place.afterMediaId && <PhotoCredits credit={place.afterPhotoCredit} title="Сведения о втором снимке"/>}
       <p className="comparison-source">
         <strong>Источник второго снимка:</strong> {place.afterSource}
       </p>

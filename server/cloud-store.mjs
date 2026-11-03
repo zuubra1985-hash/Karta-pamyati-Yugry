@@ -70,6 +70,7 @@ export class CloudStore {
         return null;
       }
       const after={...current,...updates,revision:revision+1};
+      if (photo !== undefined) after.photoCredit = photo === null ? undefined : (updates.photoCredit || {});
       if(image===null)delete after.mediaId;
       else if(image){await this.saveMedia(image,tx);after.mediaId=image.id;}
       await this.execute('INSERT INTO place_edits VALUES (?,?,?,?,?,?,?)',[randomUUID(),id,after.revision,editor,new Date().toISOString(),JSON.stringify(current),JSON.stringify(after)],tx);
@@ -104,7 +105,7 @@ export class CloudStore {
       if(!r||r.status!=='pending'||r.revision!==revision)return false;
       if(action==='approve') {
         const {contact,consent,...data}=JSON.parse(r.data);
-        await this.execute('INSERT INTO places VALUES (?,?)',[id,JSON.stringify({...data,id,demo:false,summary:data.story.slice(0,160)+(data.story.length>160?'…':''),image:'river'})],tx);
+        await this.execute('INSERT INTO places VALUES (?,?)',[id,JSON.stringify({...data,dateLabel:'Воспоминание',id,demo:false,summary:data.story.slice(0,160)+(data.story.length>160?'…':''),image:'river'})],tx);
       }
       await this.execute('UPDATE submissions SET status=?,reason=?,revision=revision+1 WHERE id=?',[action==='approve'?'approved':'rejected',reason,id],tx);return true;
     });
