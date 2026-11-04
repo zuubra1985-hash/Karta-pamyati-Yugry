@@ -120,9 +120,9 @@ const passportRoutes: Route[] = [
 const storyNoun = (count: number) => ({one:"история", few:"истории", many:"историй", other:"истории", zero:"историй", two:"истории"})[new Intl.PluralRules("ru").select(count)];
 const nav: { id: Page; label: string }[] = [
   { id: "map", label: "Карта мест" },
-  { id: "stories", label: "Истории" },
+  { id: "stories", label: "Каталог" },
   { id: "memories", label: "Воспоминания" },
-  { id: "routes", label: "Маршруты памяти" },
+  { id: "routes", label: "Подборки" },
   { id: "about", label: "О проекте" },
 ];
 function Mark({ small = false }: { small?: boolean }) {
@@ -242,6 +242,10 @@ export default function App() {
             : "map") as Page,
         );
         setDialog(null);
+        if (hash === "map" && window.history.state?.focusedPlaceId) {
+          setSelected(window.history.state.focusedPlaceId);
+          window.setTimeout(explore, 0);
+        }
       }
     };
     onHash();
@@ -344,6 +348,7 @@ export default function App() {
       archivePage: page, fromArchive: true, returnHash: window.location.hash,
       relatedPlaceId: next.type === "submit" ? next.relatedPlace?.id : undefined,
     }, "", hash);
+    setMenu(false);
     setDialog(next);
   }
   function openPlace(place: Place) {
@@ -355,7 +360,10 @@ export default function App() {
     setDialog(null);
     resetFilters();
     setSelected(place.id);
-    window.history.replaceState(null, "", "#map");
+    setMenu(false);
+    const mapState = {archivePage: "map", focusedPlaceId: place.id};
+    if (window.location.hash === "#map") window.history.replaceState(mapState, "", "#map");
+    else window.history.pushState(mapState, "", "#map");
     window.setTimeout(explore, 0);
   }
   function closeDialog() {
@@ -452,76 +460,27 @@ export default function App() {
           </div>
         </div>
       </header>
-      <main id="main" tabIndex={-1}>
+      <main id="main" className="research-main" tabIndex={-1}>
         {page === "map" && (
-          <section className="hero container">
-            <div className="hero-text">
-              <div className="eyebrow">
-                <span className="eyebrow-line" /> ЖИВОЙ АРХИВ РОДНОГО КРАЯ
-              </div>
-              <h1>
-                У каждого места
-                <br />
-                есть своя <em>память.</em>
-              </h1>
-              <p>
-                Истории людей, знакомые улицы и исчезнувшие посёлки.
-                <br className="desktop-break" /> Сохраняем то, что связывает нас
-                с Югрой.
-              </p>
+          <section className="research-intro container" aria-labelledby="project-title">
+            <div>
+              <span className="eyebrow">НАУЧНЫЙ ПРОЕКТ · {organization.shortName}</span>
+              <h1 id="project-title">Карта памяти Югры</h1>
+              <p>История поселений и воспоминания жителей. Исторические паспорта, картографические сведения и свидетельства о жизни на Севере.</p>
               <div className="hero-actions">
-                <button className="button primary" onClick={explore}>
-                  Открыть карту <ArrowUpRight size={18} />
-                </button>
-                <button
-                  className="text-button"
-                  onClick={() => navigate("about")}
-                >
-                  Как устроен проект <ArrowRight size={16} />
-                </button>
-              </div>
-              <div className="hero-facts">
-                <div>
-                  <strong>
-                    {loading ? "…" : loadError ? "—" : places.length.toString().padStart(2, "0")}
-                  </strong>
-                  <span>мест с историями</span>
-                </div>
-                <i />
-                <div>
-                  <strong>05</strong>
-                  <span>тем для открытия</span>
-                </div>
-                <i />
-                <div className="fact-human">
-                  <Users size={23} />
-                  <span>
-                    Сохраняем
-                    <br />
-                    вместе с вами
-                  </span>
-                </div>
+                <button className="button primary" onClick={explore}>Открыть карту <ArrowRight size={17} /></button>
+                <button className="text-button" onClick={() => navigate("about")}>О проекте и источниках <ArrowRight size={16} /></button>
               </div>
             </div>
-            <div className="hero-art">
-              <img
-                src="/images/hero.svg"
-                alt="Иллюстрация: извилистая северная река среди хвойных лесов"
-              />
-              <div className="hero-coordinate">
-                61°15′ с. ш. &nbsp; 73°24′ в. д.
-                <span>Там, где начинается наша история</span>
-              </div>
-              <div className="hero-stamp">
-                <Compass size={31} strokeWidth={1} />
-                <span>
-                  МЕСТА. ЛЮДИ.
-                  <br />
-                  ВОСПОМИНАНИЯ.
-                </span>
-              </div>
-              <span className="art-credit">АВТОРСКАЯ ИЛЛЮСТРАЦИЯ</span>
-            </div>
+            <aside className="research-overview" aria-label="Состав архива">
+              <h2>Состав архива</h2>
+              <dl className="hero-facts">
+                <div><dt>Карточки материалов</dt><dd>{loading ? "…" : loadError ? "—" : places.length}</dd></div>
+                <div><dt>Исторические паспорта</dt><dd>{loading ? "…" : loadError ? "—" : places.filter(p => p.passport).length}</dd></div>
+                <div><dt>Воспоминания</dt><dd>{loading ? "…" : loadError ? "—" : memories.length + contributedMemories.length}</dd></div>
+              </dl>
+              <p>Источники и степень определённости сведений указаны в карточках.</p>
+            </aside>
           </section>
         )}
         {page !== "map" && (
@@ -529,25 +488,25 @@ export default function App() {
             <span className="eyebrow">КАРТА ПАМЯТИ ЮГРЫ</span>
             <h1>
               {page === "stories"
-                ? "Истории, которые рядом."
+                ? "Каталог материалов"
                 : page === "memories"
-                  ? "Голоса родного края."
+                  ? "Воспоминания жителей"
                 : page === "favorites"
-                  ? "Места, которые дороги."
+                  ? "Избранные материалы"
                   : page === "routes"
-                    ? "Истории, объединённые темой."
-                    : "Сохраним память. Вместе."}
+                    ? "Тематические подборки"
+                    : "О научном проекте"}
             </h1>
             <p>
               {page === "stories"
-                ? "Небольшие рассказы складываются в большую историю нашего края."
+                ? "Исторические паспорта поселений и опубликованные материалы участников проекта."
                 : page === "memories"
                   ? "Личные воспоминания жителей: опубликованные свидетельства и рассказы участников проекта."
                 : page === "favorites"
                   ? "Ваш личный список мест. Сохраняется в этом браузере на этом устройстве."
                   : page === "routes"
                     ? "Тематические подборки историй о местах Югры."
-                    : "Живой архив мест, людей и воспоминаний о Югре."}
+                    : "Задачи проекта, источники, принципы публикации и сведения об организации."}
             </p>
           </section>
         )}
@@ -557,15 +516,15 @@ export default function App() {
               <div>
                 <span className="eyebrow">
                   {page === "favorites"
-                    ? "ВАША КОЛЛЕКЦИЯ"
-                    : "БОЛЬШАЯ ИСТОРИЯ В МАЛЕНЬКИХ ДЕТАЛЯХ"}
+                    ? "ЛИЧНАЯ ПОДБОРКА"
+                    : "МАТЕРИАЛЫ АРХИВА"}
                 </span>
                 <h2>
                   {page === "map"
-                    ? "Найдите своё место в истории"
+                    ? "Карта поселений"
                     : page === "favorites"
                       ? "Избранные места"
-                      : "Листая память Югры"}
+                      : "Материалы и паспорта"}
                 </h2>
               </div>
               {page === "map" && (
@@ -812,14 +771,14 @@ export default function App() {
           <section className="featured container">
             <div className="section-top">
               <div>
-                <span className="eyebrow">НЕ ТОЛЬКО ТОЧКИ НА КАРТЕ</span>
-                <h2>За каждым местом — люди</h2>
+                <span className="eyebrow">КАТАЛОГ МАТЕРИАЛОВ</span>
+                <h2>Карточки поселений</h2>
               </div>
               <button
                 className="text-button"
                 onClick={() => navigate("stories")}
               >
-                Все истории <ArrowRight size={17} />
+                Весь каталог <ArrowRight size={17} />
               </button>
             </div>
             <div className="story-grid">
@@ -839,7 +798,8 @@ export default function App() {
         {page === "memories" && !loading && !loadError && (
           <section className="container memoir-page">
             <label className="search-field"><Search size={19} /><input aria-label="Поиск по воспоминаниям" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Рассказчик, поселение или слово из воспоминания…" /></label>
-            {memoryPlaces.length > 0 && <>
+            {memoryPlaces.length > 0 && <details className="memory-filters">
+              <summary><SlidersHorizontal size={17} /> Отбор по событиям карточек <span>{event !== "all" || yearRange ? "Фильтр применён" : "Все события и годы"}</span></summary>
               <Timeline
                 places={memoryPlaces}
                 event={event}
@@ -849,8 +809,9 @@ export default function App() {
                 onReset={() => setYearRange(null)}
               />
               <p className="timeline-note">Шкала отбирает воспоминания по событиям связанных карточек. Период самого рассказа указан рядом с его заголовком.</p>
-            </>}
+            </details>}
             {filteredMemories.length > 0 && <ResidentMemories
+              title="Свидетельства из источников"
               memories={filteredMemories}
               placeTitles={placeTitles}
               onPlace={(id) => { const place = places.find((p) => p.id === id); if (place) openPlace(place); }}
@@ -898,36 +859,17 @@ export default function App() {
         {page === "about" && (
           <section className="container about-section">
             <div className="about-intro">
+              <div><span className="eyebrow">ЗАДАЧИ ПРОЕКТА</span><h2>История поселений.<br />Источники и свидетельства.</h2></div>
               <div>
-                <span className="eyebrow">ОТ ЛИЧНОГО — К ОБЩЕМУ</span>
-                <h2>
-                  История края живёт
-                  <br />в наших воспоминаниях.
-                </h2>
-              </div>
-              <div>
-                <p>
-                  «Карта памяти Югры» — место, где семейная фотография, рассказ
-                  о знакомой улице или воспоминание о посёлке становятся частью
-                  общего архива.
-                </p>
-                <p>
-                  Мы хотим сохранить не только даты и названия, но и
-                  человеческий взгляд: как выглядел двор, куда ходили в школу и
-                  какие места особенно дороги.
-                </p>
+                <p>«Карта памяти Югры» — авторский научный проект {organization.shortName}. Проект собирает и систематизирует сведения о поселениях Югры, их истории и жизни жителей.</p>
+                <p>В архиве представлены исторические паспорта, ссылки на публикации, фотографии и воспоминания. Для работы с материалом важно учитывать его источник, датировку и точность местоположения.</p>
               </div>
             </div>
-            <img
-              className="about-panorama"
-              src="/images/hero.svg"
-              alt="Авторская иллюстрация северной реки"
-            />
             <div className="principles">
               <article>
                 <span>01</span>
                 <BookOpen size={26} />
-                <h3>Источники имеют значение</h3>
+                <h3>Источники и атрибуция</h3>
                 <p>
                   У каждого материала есть автор и источник. Личное воспоминание
                   сохраняет свой статус и не подменяет подтверждённый
@@ -937,7 +879,7 @@ export default function App() {
               <article>
                 <span>02</span>
                 <Heart size={26} />
-                <h3>Бережно к людям</h3>
+                <h3>Этика публикации</h3>
                 <p>
                   Публикуем материалы с согласиями. Не раскрываем контактные
                   данные, закрытые знания и точные координаты чувствительных
@@ -947,7 +889,7 @@ export default function App() {
               <article>
                 <span>03</span>
                 <Users size={26} />
-                <h3>Архив открыт для участия</h3>
+                <h3>Редакторская проверка</h3>
                 <p>
                   Историки, краеведы, музеи и жители могут дополнять карту.
                   Каждая история проходит проверку редактора перед публикацией.
@@ -955,8 +897,9 @@ export default function App() {
               </article>
             </div>
             <div className="about-policy">
-              <h3>Как используются ваши материалы</h3>
-              <h2>Сохраним память о Севере вместе</h2>
+              <h3>Участие в проекте</h3>
+              <p>Вы можете передать воспоминание, фотографию или сведения о поселении. Укажите происхождение материала и известные даты. Перед публикацией материал поступает на редакторскую проверку.</p>
+              <details className="project-invitation"><summary>Сохраним память о Севере вместе</summary>
               <p><strong>У каждого человека есть своя история. А вместе наши истории становятся памятью целого края.</strong></p>
               <p>Север — это не только бескрайние просторы, реки, леса и суровая природа. Прежде всего, это люди, их судьбы, воспоминания, традиции и места, которые навсегда остались в сердце.</p>
               <p>Когда-то здесь кипела жизнь, строились посёлки, рождались семьи, звучал детский смех, люди трудились, мечтали и создавали свою историю. Сегодня многие из этих мест исчезли с карт, но память о них продолжает жить в рассказах тех, кто был частью этой жизни.</p>
@@ -967,6 +910,7 @@ export default function App() {
               <p><strong>Благодаря вашим историям мы сможем увидеть Север таким, каким он был на самом деле.</strong> Не только через архивные документы и официальные даты, но и глазами людей, которые здесь жили, любили, трудились и оставили свой след.</p>
               <h3>История Севера складывается из наших воспоминаний.</h3>
               <p><strong>Поделитесь своей историей. Сохраним прошлое для будущих поколений.</strong></p>
+              </details>
               <button className="button primary" onClick={() => openDialog({ type: "submit" })}><Plus size={17} />Добавить воспоминание</button>
               <details className="materials-terms">
                 <summary>Условия публикации и обработки материалов</summary>
@@ -991,20 +935,10 @@ export default function App() {
         )}
         {page !== "favorites" && page !== "about" && (
           <section className="participate container">
-            <div className="participate-symbol">
-              <Mark small />
-              <span className="symbol-orbit" />
-            </div>
             <div>
-              <span className="eyebrow">
-                ПАМЯТЬ СТАНОВИТСЯ ОБЩЕЙ, КОГДА ЕЮ ДЕЛЯТСЯ
-              </span>
-              <h2>Ваша история — часть Югры.</h2>
-              <p>
-                Старый снимок. Знакомый дом. Рассказ близкого человека.
-                <br />
-                Помогите сохранить то, что нельзя потерять.
-              </p>
+              <span className="eyebrow">ПОПОЛНЕНИЕ АРХИВА</span>
+              <h2>Передать материал в проект</h2>
+              <p>Воспоминания, фотографии и сведения о поселениях принимаются на редакторскую проверку.</p>
             </div>
             <button
               className="button light"
@@ -1161,7 +1095,7 @@ function StoryCard({
   onOpen: () => void;
 }) {
   return (
-    <article className="story-card" data-accent={p.appearance?.accent}>
+    <article className={`story-card ${p.mediaId ? "has-photograph" : "has-illustration"}`} data-accent={p.appearance?.accent}>
       <div className="story-image">
         <button onClick={onOpen} aria-label={`Открыть историю: ${p.title}`}>
           <img
@@ -1178,6 +1112,7 @@ function StoryCard({
               ? "ИСТОРИЯ ПОСЕЛЕНИЯ"
               : "ИСТОРИЯ ЖИТЕЛЯ"}
         </span>
+        {!p.mediaId && <span className="catalogue-illustration-label">Иллюстрация</span>}
         <button
           className={`image-heart ${saved ? "is-saved" : ""}`}
           aria-label={`${saved ? "Убрать из избранного" : "В избранное"}: ${p.title}`}

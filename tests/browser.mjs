@@ -264,7 +264,7 @@ try {
   );
   await page
     .locator(".main-nav")
-    .getByRole("link", { name: "Маршруты памяти" })
+    .getByRole("link", { name: "Подборки" })
     .click();
   await page.locator(".route-card").first().click();
   await page.locator(".route-detail li").first().getByRole("button").click();
@@ -323,7 +323,7 @@ try {
   await page.getByRole("button", { name: "Открыть меню", exact: true }).click();
   await page
     .locator(".main-nav")
-    .getByRole("link", { name: "Истории", exact: true })
+    .getByRole("link", { name: "Каталог", exact: true })
     .click();
   await page.locator(".story-card").first().waitFor();
   assert.equal(await page.locator(".main-nav").isVisible(), false);
@@ -369,7 +369,7 @@ try {
   await page.keyboard.press("Escape");
   await page
     .locator(".main-nav")
-    .getByRole("link", { name: "Маршруты памяти" })
+    .getByRole("link", { name: "Подборки" })
     .click();
   await page.locator(".route-card").first().click();
   assert.equal(await page.locator(".route-detail li").count(), 6);

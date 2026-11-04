@@ -41,6 +41,8 @@ try {
   assert.equal(await page.locator(".timeline").count(), 0);
   await page.goto(origin + "/#memories", {waitUntil:"networkidle"});
   assert.equal(await page.locator(".timeline").count(), 1);
+  assert.equal(await page.locator(".memory-filters").getAttribute("open"), null);
+  await page.locator(".memory-filters > summary").click();
   assert.equal(await page.locator(".memoir-card").count(), 14);
   const memoryIds = new Set(published.filter(p => p.dateLabel === "Учёт населения").flatMap(p => p.memories.map(m => m.id)));
   await page.getByLabel("Тип события", {exact:true}).selectOption("Учёт населения");
@@ -126,7 +128,7 @@ try {
   assert.match(await page.locator(".place-detail h2").textContent(), /Кедровый/);
   assert.match(await page.locator(".passport-card").textContent(), /Точное местоположение/);
   await page.keyboard.press("Escape");
-  await page.locator(".main-nav").getByRole("link", { name: "Истории", exact: true }).click();
+  await page.locator(".main-nav").getByRole("link", { name: "Каталог", exact: true }).click();
   assert.equal(await page.locator(".story-card").count(), 36);
   passed.push("Static deployment: direct passport links and 36 story cards");
   await page.locator(".main-nav").getByRole("link", { name: "Воспоминания", exact: true }).click();
