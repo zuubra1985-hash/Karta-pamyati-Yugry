@@ -3647,3 +3647,11 @@ textarea {
 .form-heading p, .source-box small, .detail-contribute > span, .photo-credits dt, .passport-help, .timeline-note, .timeline-help { color:#58664f; }
 .contributor-memories { margin:32px 0; }
 .contributor-memories > h2 { font-size:28px; margin-bottom:22px; }
+
+/* Keep focused-place controls inside the map instead of under the settlement list. */
+.geographic-viewport { min-height:160px; }
+.map-data-note, .map-approximate { flex-shrink:0; }
+@media(max-width:700px) {
+  .map-wrap.geographic-map { height:auto; min-height:490px; }
+  .geographic-viewport { flex:none; height:280px; min-height:280px; }
+}

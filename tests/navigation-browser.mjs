@@ -18,21 +18,21 @@ try {
   await page.goto(origin,{waitUntil:"networkidle"});
   await page.getByRole("button",{name:"Открыть карту",exact:true}).click();
   await page.waitForFunction(()=>Math.abs(document.getElementById("explore").getBoundingClientRect().top)<40);
-  await page.getByRole("button",{name:"О проекте и источниках",exact:true}).click();
+  await page.getByRole("button",{name:"Как устроен проект",exact:true}).click();
   await page.waitForURL("**/#about");
-  await page.getByRole("heading",{name:"О научном проекте",exact:true}).waitFor();
+  await page.getByRole("heading",{name:"Сохраним память. Вместе.",exact:true}).waitFor();
   await page.locator(".about-policy > .button").click();
   await page.locator(".submission-form").waitFor();
   await page.getByRole("button",{name:"Закрыть окно",exact:true}).click();
   await page.waitForURL("**/#about");
-  for(const [name,hash] of [["Карта мест","map"],["Каталог","stories"],["Воспоминания","memories"],["Подборки","routes"],["О проекте","about"]]) {
+  for(const [name,hash] of [["Карта мест","map"],["Истории","stories"],["Воспоминания","memories"],["Маршруты памяти","routes"],["О проекте","about"]]) {
    if(width<1001)await page.getByRole("button",{name:"Открыть меню",exact:true}).click();
    await page.locator(".main-nav").getByRole("link",{name,exact:true}).click();
    await page.waitForURL(`**/#${hash}`);
    if(width<1001)assert.equal(await page.locator(".mobile-menu").getAttribute("aria-expanded"),"false");
   }
   await page.locator(".brand").click();await page.waitForURL("**/#map");
-  await page.getByRole("button",{name:"Весь каталог",exact:false}).click();await page.waitForURL("**/#stories");
+  await page.getByRole("button",{name:"Все истории",exact:false}).click();await page.waitForURL("**/#stories");
   await page.locator(".story-title").first().click();await page.waitForURL("**/#place/pas-001");
   await page.getByRole("button",{name:"Показать на карте",exact:true}).click();await page.waitForURL("**/#map");
   await page.locator(".map-focused-place").waitFor();

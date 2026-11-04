@@ -1,15 +1,14 @@
 import { ArrowUpRight, Quote } from "lucide-react";
 import type { ResidentMemory } from "../types";
 
-export default function ResidentMemories({ memories, onPlace, placeTitles, title = "Воспоминания жителей" }: {
+export default function ResidentMemories({ memories, onPlace, placeTitles }: {
   memories: ResidentMemory[];
-  title?: string;
   onPlace?: (id: string) => void;
   placeTitles?: Map<string, string>;
 }) {
   if (!memories.length) return null;
   return <section className="resident-memories" aria-label="Воспоминания жителей">
-    <div className="resident-memories-heading"><Quote size={23} /><div><span className="eyebrow">ЛИЧНЫЕ СВИДЕТЕЛЬСТВА</span><h3>{title}</h3></div></div>
+    <div className="resident-memories-heading"><Quote size={23} /><div><span className="eyebrow">ЛИЧНЫЕ СВИДЕТЕЛЬСТВА</span><h3>Воспоминания жителей</h3></div></div>
     <div className="memoir-grid">
       {memories.map((memory) => <article className="memoir-card" key={memory.id}>
         <span className="memoir-period">{memory.period}</span>

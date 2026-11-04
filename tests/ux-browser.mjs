@@ -83,7 +83,7 @@ try {
   }
   await page.goto(origin+"/#about",{waitUntil:"networkidle"});
   await page.locator(".skip-link").focus();await page.keyboard.press("Enter");
-  assert.match(await page.locator("h1").innerText(),/О научном проекте/);
+  assert.match(await page.locator("h1").innerText(),/Сохраним память/);
   assert.equal(await page.locator("main").evaluate(el=>el===document.activeElement),true);
   await page.goto(origin+"/#admin",{waitUntil:"networkidle"});
   await page.getByRole("heading",{name:"Кабинет администратора",exact:true}).waitFor();

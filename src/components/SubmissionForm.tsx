@@ -87,8 +87,12 @@ export default function SubmissionForm({ onClose, relatedPlace }: { onClose: () 
   return (
     <>
       <div className="form-heading">
-        <span className="eyebrow">ПОПОЛНЕНИЕ АРХИВА</span>
-        <h2>Передать воспоминание</h2>
+        <span className="eyebrow">ЖИВОЙ АРХИВ НАЧИНАЕТСЯ С ВАС</span>
+        <h2>
+          У каждого есть
+          <br />
+          что сохранить.
+        </h2>
         <p>
           Расскажите о месте, которое помните. Все материалы проходят
           редакторскую проверку перед публикацией. Год, координаты и фотографии можно не указывать.
